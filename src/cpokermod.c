@@ -1,3 +1,20 @@
+// Copyright 2013 Allen Boyd Cunningham
+
+// This file is part of pypoker-tools.
+
+//     pypoker_tools is free software: you can redistribute it and/or modify
+//     it under the terms of the GNU General Public License as published by
+//     the Free Software Foundation, either version 3 of the License, or
+//     (at your option) any later version.
+//     pypoker_tools is distributed in the hope that it will be useful,
+//     but WITHOUT ANY WARRANTY; without even the implied warranty of
+//     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//     GNU General Public License for more details.
+
+//     You should have received a copy of the GNU General Public License
+//     along with pypoker_tools.  If not, see <http://www.gnu.org/licenses/>.
+
+
 #include "poker_heavy.h"
 #include "Python.h"
 
@@ -34,7 +51,6 @@ static int convert_cards(PyObject *pycard_list, uint32_t *cards, int ncards){
     PyObject * item; \
     for (i = 0; i < len; i++){ \
         item = typefunc(array[i]); \
-        Py_INCREF(item); \
         PyList_SetItem(list, i, item); \
     }
 
@@ -44,7 +60,6 @@ static PyObject *buildListFromArray( void *buffer, int len, char dtype){
     int i;
 
     plist = PyList_New(len);
-    Py_INCREF(plist);
 
     switch (dtype){
         case 'i': {long *iptr = (long*) buffer;
@@ -103,7 +118,7 @@ static PyObject *cpoker_holdem(PyObject *self, PyObject *args){
 const char rivervalue_doc[] =
 "rivervalue(hand, board, [optimistic])\n\n"
 "Return the ev ( (wins + 0.5ties) / total ) of hand\n"
-" vs all 990 opposing hand combinations;\n\n"
+"vs all 990 opposing hand combinations;\n\n"
 "Optionally, supplying True for optimistic returns\n"
 "(wins + ties) / total.\n";
 
@@ -139,7 +154,7 @@ static PyObject * cpoker_rivervalue ( PyObject * self, PyObject * args )
 const char riverties_doc[] =
 "riverties(hand, board)\n\n"
 "Return the tuple <number of wins>, <number of ties>\n"
-" vs all 990 opposing hand combinations\n";
+"vs all 990 opposing hand combinations\n";
 
 static PyObject * cpoker_riverties ( PyObject * self, PyObject * args )
 {
@@ -166,7 +181,9 @@ static PyObject * cpoker_riverties ( PyObject * self, PyObject * args )
     return (PyObject *) Py_BuildValue( "ii", value.wins, value.ties );
 }
 
-
+const char preflop_match_doc[] =
+"preflop_match(hand1, hand2)\n\n"
+"Return the ev of hand1 vs hand2";
 
 static PyObject * cpoker_preflop_match ( PyObject * self, PyObject * args )
 {
@@ -199,71 +216,160 @@ static PyObject * cpoker_preflop_match ( PyObject * self, PyObject * args )
 
 #define MAX_PREFLOP_GROUPS 32
 
-dictEntry handDict[NUM_STARTING_HANDS] = {(dictEntry) {.value = -1}};
-int maxDictValue;
 
 //pyList is a list of values in appropriate order
 //the order should be the same as itertools.combinations
-void setHandDict(PyObject * pyList){
+int setHandDictWithList(PyObject * pyList, dictEntry handDict[]){
     int i, j, index = 0;
     dictEntry *dict = &handDict[0];
+
+    int max = 0;
+
+    if (PyList_Size(pyList) != NUM_STARTING_HANDS){
+        PyErr_SetString(PyExc_ValueError, "list must contain 1326 entries (one for each starting hand)");
+        return FAIL;
+    }
 
     for (i = 0; i < 52; i++){
         for (j = i + 1; j < 52; j++, dict++, index++){
             dict->hand[0] = i;
             dict->hand[1] = j;
             dict->value = PyInt_AsLong(PyList_GetItem(pyList, index));
+            if (dict->value > max)
+                max = dict->value;
         }
     }
+
+    #ifdef DEBUG
+    for (i = 0; i < NUM_STARTING_HANDS; i ++){
+        if ( handDict[i].value != PyInt_AsLong(PyList_GetItem(pyList, i)) ){
+            printf("test failed: cval %i != pyval %li\n", handDict[i].value,
+                PyInt_AsLong(PyList_GetItem(pyList, i)));
+            return FAIL;
+        }
+
+    }
+    #endif
+    return max;
 }
 
 
-static PyObject * cpoker_set_dict ( PyObject * self, PyObject * args )
-{
-    PyObject *plist;
-    int i;
+//set handDict using values from pyDict
+//pyDict must include all two card hand combinations
+//with values <= MAX_PREFLOP_GROUPS
+int setHandDictWithDict(PyObject *pyDict, dictEntry handDict[]){
+    PyObject *key, *value;
+    Py_ssize_t pos = 0;
 
-    if (!PyArg_ParseTuple(args, "O", &plist))
-        return NULL;
+    int c1, c2, index;
+    int max = 0;
 
-    if ( !PyList_Check(plist) || !(PyList_Size(plist) == NUM_STARTING_HANDS) ){
-        PyErr_SetString(PyExc_TypeError, "Do better with the list of values");
-        return NULL;
+    if (PyDict_Size(pyDict) != NUM_STARTING_HANDS){
+        PyErr_SetString(PyExc_ValueError, "dictionary must contain 1326 entries (one for each starting hand)");
+        return FAIL;
     }
-    setHandDict(plist);
-    maxDictValue = 0;
 
-    for (i = 0; i < NUM_STARTING_HANDS; i ++){
-        if ( handDict[i].value != PyInt_AsLong(PyList_GetItem(plist, i)) ){
-            printf("test failed: cval %i != pyval %li\n", handDict[i].value,
-                PyInt_AsLong(PyList_GetItem(plist, i)));
-            return NULL;
+    while (PyDict_Next(pyDict, &pos, &key, &value)){
+
+        if ( !PyTuple_Check(key) ){
+            PyErr_SetString(PyExc_ValueError, "dictionary keys must be card tuples");
+            return FAIL;
         }
-        if (handDict[i].value > maxDictValue)
-            maxDictValue = handDict[i].value;
+        if ( !PyArg_ParseTuple(key, "ii", &c1, &c2) ){
+            return FAIL;
+        }
+        //if the pyDict is the right length and no GET_INDEX
+        //is > NUM_STARTING_HANDS we will necessarily fill in handDict
+        if ( (index = GET_INDEX(c1, c2)) >= NUM_STARTING_HANDS ){
+            PyErr_SetString(PyExc_ValueError, "dictionary keys must be tuples of unmatching cards (0-51)");
+            return FAIL;
+        }
+        handDict[index].hand[0] = c1;
+        handDict[index].hand[1] = c2;
+        if ( (handDict[index].value = PyInt_AsLong(value)) == FAIL){
+            PyErr_SetString(PyExc_ValueError, "dictionary values must be integers");
+            return FAIL;
+        }
+        if (handDict[index].value > max)
+            max = handDict[index].value;
+
     }
-    if (maxDictValue > MAX_PREFLOP_GROUPS){
+    return max;
+}
+
+
+int set_dict ( PyObject *phand_values, dictEntry handDict[] )
+{
+
+    int max = FAIL;
+
+    if ( PyList_Check(phand_values) ){
+        max = setHandDictWithList(phand_values, handDict);
+    }
+    else if ( PyDict_Check(phand_values) ){
+        max = setHandDictWithDict(phand_values, handDict);
+    }
+    else{
+        PyErr_SetString(PyExc_ValueError, "hand_values must be a list or dict");
+    }
+
+    if (max > MAX_PREFLOP_GROUPS){
         PyErr_Format(PyExc_ValueError,
             "preflop value too high.  got %i, needed <= %i",
-            maxDictValue, MAX_PREFLOP_GROUPS);
-        return NULL;
+            max, MAX_PREFLOP_GROUPS);
+        return FAIL;
     }
-    printf("passed with max value %i\n", maxDictValue);
-    Py_INCREF(Py_None);
-    return Py_None;
+    return max;
 }
 
+const char river_distribution_doc[] =
+"river_distribution(hand, board, [hand_values])\n\n"
+"Return a histogram showing how your hand does against\n"
+"different groups of preflop hands.\n\n"
+"The preflop groups are set by hand_values, which is saved\n"
+"between calls thus needs only be supplied once unless you\n"
+"change it.\n\n"
+"The histogram bars give you 2 points for each win and 1 point\n"
+"for each tie for all hands in that group\n"
+"hand, board -> lists of cards, 2 and 5\n"
+"hand_values -> either a dictionary or list mapping all preflop\n"
+"    hands to a hand group (such as the Sklansky hand ranks)\n"
+"    Dictionary keys must be tuples of cards with the smallest\n"
+"    of the two cards first.\n"
+"    List items must be the values sorted by keys.\n"
+"    Values must be contiguous integers starting from 0.\n";
+
 static PyObject * cpoker_river_distribution(PyObject *self, PyObject *args){
+
+    static dictEntry handDict[NUM_STARTING_HANDS];
+    static int maxDictValue = FAIL;
+    //save a reference to the phand_values object
+    //to check if the same object is continuously used
+    static PyObject *oldvalues = NULL;
+
+
     PyObject *pyhand, *pyboard;
+    PyObject *phand_values = NULL;
     uint32_t hand[2], board[5], i;
     long chart[MAX_PREFLOP_GROUPS];
 
-    if (!PyArg_ParseTuple(args, "OO", &pyhand, &pyboard))
+    if (!PyArg_ParseTuple(args, "OO|O", &pyhand, &pyboard, &phand_values))
         return NULL;
 
-    if (handDict[0].value == -1){
-        PyErr_SetString(PyExc_TypeError, "no handDict!");
-        return NULL;        
+    //make sure not to waste time resetting handDict if the same
+    //phand_values is used multiple times
+    if ( phand_values && (phand_values != oldvalues) ){
+        if ( (maxDictValue = set_dict(phand_values, handDict)) == FAIL ){
+            return NULL;
+        }
+        Py_XDECREF(oldvalues);
+        Py_INCREF(phand_values);
+        oldvalues = phand_values;
+    }
+
+    if (maxDictValue == FAIL){
+        PyErr_SetString(PyExc_ValueError, "no proper hand_values are set");
+        return NULL;
     }
 
     if (convert_cards(pyhand, hand, 2) == FAIL){
@@ -303,9 +409,8 @@ static PyMethodDef cpokerMethods[] = {
     { "holdem", cpoker_holdem, METH_VARARGS, holdem_doc },
     { "rivervalue", cpoker_rivervalue, METH_VARARGS, rivervalue_doc },
     { "riverties", cpoker_riverties, METH_VARARGS, riverties_doc },
-    { "preflop_match", cpoker_preflop_match, METH_VARARGS },
-    { "set_dict", cpoker_set_dict, METH_VARARGS },
-    { "river_distribution", cpoker_river_distribution, METH_VARARGS },
+    { "preflop_match", cpoker_preflop_match, METH_VARARGS, preflop_match_doc },
+    { "river_distribution", cpoker_river_distribution, METH_VARARGS, river_distribution_doc },
     { NULL, NULL }
 };
 
