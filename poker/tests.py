@@ -1,6 +1,6 @@
 import cpoker
 import poker_lite
-from general_store import utils
+import utils
 
 
 def assert_close(a, b, error=.001):
