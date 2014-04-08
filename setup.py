@@ -19,11 +19,11 @@ module = Extension(
     sources=sources
 )
 
-with open("README.txt") as f:
+with open("README.md") as f:
     long_description = f.read()
 
 setup(
-    name='poker',
+    name='pypoker-tools',
     version='0.1',
     ext_modules=[module],
     packages=['poker'],
