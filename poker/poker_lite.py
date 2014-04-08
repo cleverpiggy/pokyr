@@ -34,7 +34,7 @@ from itertools import combinations, combinations_with_replacement
 #   -quads13bits-trips13bits-pairs13bits-singles13bits-
 
 #phase2() is seperate to allow caching handvalue calculations
-#on a portion of the hand and does the following:
+#(ie. in do_board() and do_hand()) and does the following:
 #check flush table for each of four flushes
 #check straight table
 #turn off bits of unused cards
@@ -262,7 +262,7 @@ def phase2(val):
     # This is a helper function for the handvalue functions.
     # It goes through the hand, turning off the bits of the
     # unused cards to produce the best five.  Then it attaches
-    # the hand type code (Two pair, flush, etc.) the the most
+    # the hand type code (Two pair, flush, etc.) to the most
     # significant bit.
 
     if val < MIN_PAIR:
@@ -364,6 +364,6 @@ def write_ctables(name="cpokertables.h"):
 
 if __name__ == "__main__":
     import sys
-    sys.path.append("..")
-    if len(sys.argv) > 1 and sys.argv[1] == "-w":
-        write_ctables()
+    if len(sys.argv) > 1:
+        write_ctables(sys.argv[1])
+
