@@ -29,7 +29,7 @@ setup(
     packages=['poker'],
     author='Allen Boyd Cunningham',
     author_email='cleverfoundation@gmail.com',
-    url='https://cleverfoundation.com',
+    url='https://github.com/cleverpiggy/pypoker-tools',
     description=__doc__,
     long_description=long_description,
     license='GPL',
