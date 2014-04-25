@@ -196,7 +196,7 @@ static uint64_t phase2(uint64_t val){
     }
 
 
-static uint64_t dohand(uint32_t c1, uint32_t c2, const partial const *data){
+static uint64_t dohand(uint32_t c1, uint32_t c2, const partial *const data){
 
     uint64_t r1, r2;
     uint64_t flush;
