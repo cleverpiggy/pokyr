@@ -24,8 +24,13 @@
 #define CARD_MASK (uint64_t) 0x1fff
 
 #define NUM_STARTING_HANDS 1326
+#define MAX_HANDS 22
 
 #define FAIL -1
+#define SUCCESS 1
+
+#define GET_RANK(c) (1 << (c >> 2))
+#define GET_SUIT(c) ((c % 4) * 13)
 
 
 struct rivervalue{
@@ -46,11 +51,13 @@ struct{
 }dictEntry;
 
 
-int holdem(uint32_t h1[2], uint32_t h2[2], uint32_t board[5]);
+int holdem2p(uint32_t h1[2], uint32_t h2[2], uint32_t board[5]);
+int multi_holdem(uint32_t [MAX_HANDS][2], int, uint32_t [5], int []);
 uint64_t handvalue(uint32_t hand[7]);
 struct rivervalue rivervalue (uint32_t hand[2], uint32_t board[5]);
-double preflop_match(uint32_t h1[2], uint32_t h2[2]);
-int river_distribution (uint32_t hand[2], uint32_t board[5], long chart[], dictEntry *dict);
+double enum2p(uint32_t h1[2], uint32_t h2[2]);
+int full_enumeration(uint32_t [MAX_HANDS][2], double [], int );
+int river_distribution (uint32_t hand[2], uint32_t board[5], int chart[], dictEntry *dict);
 void populate_tables(uint16_t ranktable[RANK_TABLE_SIZE],
                      uint16_t flushtable[FLUSH_TABLE_SIZE],
                      const uint16_t straighttable[FLUSH_TABLE_SIZE]);

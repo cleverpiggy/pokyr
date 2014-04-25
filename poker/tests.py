@@ -18,6 +18,7 @@
 
 import cpoker
 import poker_lite
+import poker
 import utils
 
 
@@ -25,22 +26,46 @@ def assert_close(a, b, error=.001):
     if abs(a - b) > error:
         raise AssertionError
 
-def test_preflop_match():
-    f = utils.pretty_args(cpoker.preflop_match)
-    assert_close(f("3s 2c", "5c 2h"), 0.398847108925)
-    assert_close(f("8h Kh", "2c 5h"), 0.665651659986)
-    assert_close(f("2s 3s", "5s Js"), 0.329603271382)
-    assert_close(f("9c Jc", "Ts Td"), 0.327120651473)
-    assert_close(f("9d Qh", "3s Ac"), 0.426625762715)
-    assert_close(f("9c Ac", "Ah Kh"), 0.288065962586)
-    assert_close(f("8c 4s", "Qh 9d"), 0.333585332978)
-    assert_close(f("Jc 2s", "7s 2d"), 0.730345779721)
-    assert_close(f("Ah 3c", "Qs 4d"), 0.609246080135)
-    assert_close(f("5c 3h", "Qh 4h"), 0.376223789701)
+def test_full_enumeration():
+    f = lambda *hands: cpoker.full_enumeration([utils.to_cards(h) for h in hands])
+    map(assert_close, f("3s 2c", "5c 2h"), [0.398847108925, 1 - 0.398847108925])
+    map(assert_close, f("8h Kh", "2c 5h"), [0.665651659986, 1 - 0.665651659986])
+    map(assert_close, f("2s 3s", "5s Js"), [0.329603271382, 1 - 0.329603271382])
+    map(assert_close, f("9c Jc", "Ts Td"), [0.327120651473, 1 - 0.327120651473])
+    map(assert_close, f("9d Qh", "3s Ac"), [0.426625762715, 1 - 0.426625762715])
+    map(assert_close, f("9c Ac", "Ah Kh"), [0.288065962586, 1 - 0.288065962586])
+    map(assert_close, f("8c 4s", "Qh 9d"), [0.333585332978, 1 - 0.333585332978])
+    map(assert_close, f("Jc 2s", "7s 2d"), [0.730345779721, 1 - 0.730345779721])
+    map(assert_close, f("Ah 3c", "Qs 4d"), [0.609246080135, 1 - 0.609246080135])
+    map(assert_close, f("5c 3h", "Qh 4h"), [0.376223789701, 1 - 0.376223789701])
+
+    #multiway
+    map(assert_close, f('8c Qd', '9h 9s', '4c 3d'),
+        [0.263, 0.584, 0.153])
+    map(assert_close, f('9h 4s',  '3s Jc', '4h Ad', '8c 2s'),
+        [0.172, 0.269, 0.352, 0.207])
+    map(assert_close, f('4s Ad', '5h 4c', 'Jc 9h', '3d Qc', '2s Qh'),
+        [0.288, 0.165, 0.328, 0.113, 0.106])
 
 
 def test_holdem():
-    for f in [poker_lite.holdem, cpoker.holdem, lambda h1, h2, b:poker_lite.compare(h1 + b, h2 + b)]:
+    def multi(h1, h2, board):
+        r = cpoker.multi_holdem([h1, h2], board)
+        if r != poker.multi_holdem([h1, h2], board):
+            for h in [h1, h2, board]:
+                print utils.make_pretty(h)
+            print r
+            print poker.multi_holdem([h1, h2], board)
+            assert False
+        return r[0] if len(r) == 1 else 2
+
+    funcs = [poker_lite.holdem2p,
+             lambda h1, h2, b:poker_lite.compare(h1 + b, h2 + b),
+             cpoker.holdem2p,
+             poker.holdem2p,
+             multi]
+
+    for f in funcs:
         f = utils.pretty_args(f)
         assert f('Td 3d', 'Ac As', 'Ks 8h 4h 6d Qh') == 1
         assert f('Td 5h', 'Ad 2s', 'Ah 4h Kd 5c 4c') == 1
@@ -73,13 +98,47 @@ def test_holdem():
         assert f('5h 8d', '4d Jc', 'Ac Js Jd 4c 2s') == 1
         assert f('4s Ad', '5h 4c', 'Jc 9h 3d Qc 2s') == 0
 
-def timer():
-    handvalue = poker_lite.handvalue
-    for i in xrange(100000):
-        hand = utils.deal(7)
-        handvalue(hand)
+    #do some more for good measure
+    for __ in xrange(1000):
+        cards = utils.deal()
+        if len(set([f(*cards) for f in funcs])) != 1:
+            print [f(*cards) for f in funcs]
+            assert False
 
-def ctest_rivervalue():
+
+def test_multi_holdem():
+
+    for hands, board, result in [
+        (['5d 6h', '5h Kh', '8h 8s'], 'Ah Ks Qc 6s 8c', [2]),
+        (['9h 5s', '7d 7c', '6d 2d'], '2s Kh 7s 5h 8h', [1]),
+        (['Jd Tc', 'Ts Th', 'Td Ac'], '9h 3c Jc Qs Ad', [2]),
+        (['Qh 2c', 'Kd 6s', '8s Js'], '4s Kh Ah Ks Jc', [1]),
+        (['5h 8c', 'Tc 4c', '3h As'], '7d Ah 8d 3s 9c', [2]),
+        (['4h Js', '3h Jc', '4d 5s'], 'As Ks Kh 8d Ah', [0, 1]),
+        (['2c 6d', '5h Kd', '7d 5c'], 'Ah 6s 9s Td 6h', [0]),
+        (['Jd 4h', 'Kh 8h', '9d 5h'], 'Jh Qd Ad Qh Ks', [1]),
+        (['Qc 7d', 'Th Jc', 'As 8c'], 'Qh 5d 7h 9h Jd', [0]),
+        (['4d Kc', 'Qc 4h', '5s Jd'], 'Ks 9s 5c Qd 2c', [0]),
+        (['6h Ks', '9c 9s', '3h 2c'], '5s Td 4c 3c Kh', [0]),
+        (['9h 7d', '8h 4h', '5d 3h'], 'Kc Jd Ad 5s 8c', [1]),
+        (['Ts Js', '8h 7h', '7s 3h'], 'As Jh 2c Ac 3c', [0]),
+        (['Ah Ts', '2s 7d', 'Kh Js'], '7c 3s 3d Td 7s', [1]),
+        (['9d 5h', 'Kh 6h', '8d 8c'], 'Ks 4d 7h Qd Th', [1]),
+        (['7c Js', 'Ah Kc', 'Jc 6c'], '2d Qh 4h 5d 2c', [1]),
+        (['3d 8d', 'Ts 4d', 'Ah 5s'], '3c 9d As 6s Jd', [2]),
+        (['4s 6c', '6s Qs', '9c 3d'], 'Th Ac 2d 8h 2h', [1]),
+        (['Qd Ah', 'Jc 9h', '6c 7c'], '3s Tc 6s 4d 4c', [2]),
+        (['Ad 6s', '3c 2d', '9d 8s'], '6d Th 3h Ah 9h', [0]),
+        (['Ad 6s', '3c Jd', '9d 8s', 'As Jc'], '6d Th 7h 8s 9h', [1, 3]),
+        (['Ad 6s', '3c 2d', '9d 8s', 'As Ac'], '6d Th 7h 8s 9h', [0, 1, 2, 3]),
+        (['Ad 6s', 'Js 2d', 'Jd 8s', 'Qs Jc', '8c 8d'], '6d Th 7h 8s 9h', [3])
+    ]:
+        assert (cpoker.multi_holdem([utils.to_cards(h) for h in hands], utils.to_cards(board)) ==
+        poker.multi_holdem([utils.to_cards(h) for h in hands], utils.to_cards(board)) ==
+        result)
+
+
+def test_crivervalue():
     f = utils.pretty_args(cpoker.rivervalue)
     assert_close(f('2d 6d', 'Tc Ts 8s 6c 5s'), 0.620202020202)
     assert_close(f('Jd Jc', '5s 7s Td 7d 4h'), 0.85202020202)
@@ -113,9 +172,9 @@ def ctest_rivervalue():
     assert_close(f('3c 9c', 'Ac 7s Ah Qc As'), 0.257070707071)
 
 def main():
-    ctest_rivervalue()
-    test_holdem()
-    test_preflop_match()
+    for name, f in globals().items():
+        if name.startswith('test'):
+            f()
 
 
 if __name__ == '__main__':

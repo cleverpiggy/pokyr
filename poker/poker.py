@@ -23,7 +23,7 @@ tables are immediately build on import to increase performance
 by eliminating the dot notation of classes.
 
 It includes a 30 MB lookup table which allows approximately
-a 4 times speed increase for holdem() over poker_lite.holdem().
+a 4 times speed increase for holdem2p() over poker_lite.holdem().
 
 The hash scheme for the lookup table was inspired by the specialK hand
 evaluator blog:
@@ -31,17 +31,21 @@ http://specialk-coding.blogspot.com/2010/04/texas-holdem-7-card-evaluator_23.htm
 The table is populated by the poker_lite.handvalue function.
 """
 
+import random
+import itertools
 import poker_lite
-from poker_lite import IS_FLUSH, BITS, CARD_MASK
+import utils
+
+_IS_FLUSH, _BITS, _CARD_MASK = (
+    poker_lite.IS_FLUSH, poker_lite.BITS, poker_lite.CARD_MASK)
+
+_SPECIALKS = (0, 1, 5, 22, 98, 453, 2031, 8698, 22854, 83661, 262349, 636345, 1479181)
+_SUITSHIFT = 23
+_RANKMASK = 0x7fffff
+_DECK = [_r | (_s << _SUITSHIFT) for _r in _SPECIALKS for _s in (0, 1, 8, 57)]
 
 
-SPECIALKS = (0, 1, 5, 22, 98, 453, 2031, 8698, 22854, 83661, 262349, 636345, 1479181)
-SUITSHIFT = 23
-RANKMASK = 0x7fffff
-DECK = [r | (s << SUITSHIFT) for r in SPECIALKS for s in (0, 1, 8, 57)]
-
-
-def ranks_combos():
+def _ranks_combos():
     #Yield each possible suitless hand.
     for i in xrange(13):
         for j in xrange(i, 13):
@@ -59,13 +63,13 @@ def ranks_combos():
                                 yield i, j, k, l, m, n, o
 
 
-def build_ranktable():
+def _build_ranktable():
     #Returns a dict.
     ranktable = {}
     offsuits = (i % 4 for i in xrange(1000000))
 
-    for hand in ranks_combos():
-        key = sum(SPECIALKS[i] for i in hand)
+    for hand in _ranks_combos():
+        key = sum(_SPECIALKS[i] for i in hand)
         offhand = [r * 4 + next(offsuits) for r in hand]
         val = poker_lite.handvalue(offhand)
         ranktable[key] = val
@@ -73,7 +77,7 @@ def build_ranktable():
     return ranktable
 
 
-def build_suittable():
+def _build_suittable():
     #Returns a dict.
     flushtable = {}
     for hand, value in enumerate(poker_lite.FLUSH_TABLE):
@@ -82,30 +86,29 @@ def build_suittable():
     return flushtable
 
 
-FLUSH_TABLE = build_suittable()
-RANK_TABLE = build_ranktable()
+_FLUSH_TABLE = _build_suittable()
+_RANK_TABLE = _build_ranktable()
 
 
-def handvalue(hand, deck=DECK):
+def handvalue(hand, val=0, computed_cards=[], deck=_DECK):
     """Return a value of a seven card hand which can be
     compared to the handvalue value of any other hand to
     see if it is better worse or equal.
 
     Only supply the hand.  The other kwargs are for internal
     use and efficiency"""
-    val = 0
     for c in hand:
         val += deck[c]
 
-    if IS_FLUSH[(val >> SUITSHIFT)] != -1:
+    if _IS_FLUSH[(val >> _SUITSHIFT)] != -1:
         flush = 0
-        for c in hand:
-            flush += BITS[c]
-        flush >>= IS_FLUSH[val >> SUITSHIFT]
-        flush &= CARD_MASK
-        return FLUSH_TABLE[flush]
+        for c in hand + computed_cards:
+            flush += _BITS[c]
+        flush >>= _IS_FLUSH[val >> _SUITSHIFT]
+        flush &= _CARD_MASK
+        return _FLUSH_TABLE[flush]
 
-    return RANK_TABLE[val & RANKMASK]
+    return _RANK_TABLE[val & _RANKMASK]
 
 
 def compare(h1, h2):
@@ -124,7 +127,7 @@ def compare(h1, h2):
         return 2
 
 
-def holdem(h1, h2, board, deck=DECK):
+def holdem2p(h1, h2, board, deck=_DECK):
     """Return an integer representing the winner of two
     holdem hands and a board.
     0 -> h1 wins
@@ -136,29 +139,29 @@ def holdem(h1, h2, board, deck=DECK):
 
     c1, c2 = h1
     v1 = val + deck[c1] + deck[c2]
-    if IS_FLUSH[(v1 >> SUITSHIFT)] != -1:
-        flush = BITS[c1] + BITS[c2]
+    if _IS_FLUSH[(v1 >> _SUITSHIFT)] != -1:
+        flush = _BITS[c1] + _BITS[c2]
         for c in board:
-            flush += BITS[c]
-        flush >>= IS_FLUSH[v1 >> SUITSHIFT]
-        flush &= CARD_MASK
-        v1 = FLUSH_TABLE[flush]
+            flush += _BITS[c]
+        flush >>= _IS_FLUSH[v1 >> _SUITSHIFT]
+        flush &= _CARD_MASK
+        v1 = _FLUSH_TABLE[flush]
 
     else:
-        v1 = RANK_TABLE[v1 & RANKMASK]
+        v1 = _RANK_TABLE[v1 & _RANKMASK]
 
     c1, c2 = h2
     v2 = val + deck[c1] + deck[c2]
-    if IS_FLUSH[(v2 >> SUITSHIFT)] != -1:
-        flush = BITS[c1] + BITS[c2]
+    if _IS_FLUSH[(v2 >> _SUITSHIFT)] != -1:
+        flush = _BITS[c1] + _BITS[c2]
         for c in board:
-            flush += BITS[c]
-        flush >>= IS_FLUSH[v2 >> SUITSHIFT]
-        flush &= CARD_MASK
-        v2 = FLUSH_TABLE[flush]
+            flush += _BITS[c]
+        flush >>= _IS_FLUSH[v2 >> _SUITSHIFT]
+        flush &= _CARD_MASK
+        v2 = _FLUSH_TABLE[flush]
 
     else:
-        v2 = RANK_TABLE[v2 & RANKMASK]
+        v2 = _RANK_TABLE[v2 & _RANKMASK]
 
     if v1 > v2:
         return 0
@@ -167,20 +170,124 @@ def holdem(h1, h2, board, deck=DECK):
     return 2
 
 
-def test():
-    from general_store import utils
-    #print type(FLUSH_TABLE)
-    for i in xrange(100000):
-        holes1, holes2, board = utils.deal()
-        if poker_lite.holdem(holes1, holes2, board) != holdem(holes1, holes2, board):
-            print "made it to ", i
-            print utils.make_pretty(holes1)
-            print utils.make_pretty(holes2)
-            print utils.make_pretty(board)
-            print "old:", ["first wins", "second wins", "tie"][poker_lite.holdem(holes1, holes2, board)]
-            print "new:", ["first wins", "second wins", "tie"][holdem(holes1, holes2, board)]
-            assert False
+def multi_holdem(hands, board, deck=_DECK):
+    """Return a list indices representing hands that win or tie."""
+    boardval = 0
+    for c in board:
+        boardval += deck[c]
 
+    results = []
+    best = 0
+    for i, h in enumerate(hands):
+        v = handvalue(h, boardval, board)
+        if v > best:
+            results = [i]
+            best = v
+        elif v == best:
+            results.append(i)
+    return results
+
+
+def monte_carlo(ranges, board=[], trials=100000):
+    """
+    Return ev of each player.
+
+    ranges -> list of ranges for each player
+              A range is a list of hands.
+              For instance you must include all
+              combinations of AA and KK (12 hands)
+              for KK+
+              There can be duplicate cards in the`
+              ranges of each player but there must
+              not be cards duplicated in the board.
+    board -> any # of cards 0-4.
+    Run approximately 'trials' simulations by randomly
+    choosing a non-conflicting hand from each of the ranges
+    then dealing out the rest of the deck for the needed
+    board cards.
+    """
+    nplayers = len(ranges)
+    wins = [0 for __ in range(nplayers)]
+    choice = random.choice
+    needed_cards = 5 - len(board)
+    nboards = (52 - len(board) - nplayers * 2) / needed_cards
+    scheme = [needed_cards] * nboards
+    Deck = utils.Deck
+    for t in xrange(trials / nboards):
+        #we have to subtract hands from deck
+        #so it will be faster to do some runnouts
+        #for each sample of player hands
+        #I believe it should be correct.
+        dups = True
+        while dups is True:
+            hands = [choice(r) for r in ranges]
+            sumh = sum(hands, [])
+            if len(set(sumh)) == len(sumh):
+                dups = False
+        dead = sum(hands, board)
+        deck = Deck(dead)
+        boards = deck.deal(scheme)
+        for b in boards:
+            winners = multi_holdem(hands, b + board)
+            nwinners = len(winners)
+            for w in winners:
+                wins[w] += 1.0 / nwinners
+    trials = trials / nboards * nboards
+    return [w / trials for w in wins]
+
+
+def full_enumeration(hands, board=[]):
+    """
+    Return ev of each player.
+
+    hands -> list of two card hands
+    board -> any # of cards 0-5.
+    """
+    nplayers = len(hands)
+    if nplayers == 2:
+        return enum2p(hands[0], hands[1], board)
+    if nplayers == 1:
+        return [1.0]
+    wins = [0 for __ in range(nplayers)]
+    trials = 0
+    dead = sum(hands, board)
+    deck = utils.Deck(dead)
+    needed_cards = 5 - len(board)
+    for cards in itertools.combinations(deck, needed_cards):
+
+        winners = multi_holdem(hands, board + list(cards))
+        nwinners = len(winners)
+        trials += 1
+        for w in winners:
+            wins[w] += 1.0 / nwinners
+
+    return [w / trials for w in wins]
+
+
+def enum2p(h1, h2, board=[]):
+    """
+    Return ev of each player.
+
+    hands -> list of two card hands
+    board -> any # of cards 0-5.
+    """
+    wins = [0,0,0]
+    dead = h1 + h2 + board
+    deck = utils.Deck(dead)
+    needed_cards = 5 - len(board)
+    for cards in itertools.combinations(deck, needed_cards):
+
+        winners = holdem2p(h1, h2, board + list(cards))
+        wins[winners] += 1
+
+    ev1 = (wins[0] + .5 * wins[2]) / sum(wins)
+    return [ev1, 1.0 - ev1]
+
+
+def main():
+    hands = [[utils.to_cards(h) for h in ["AcKc", "2c2d"]], [utils.to_cards("As2c")]]
+    board = utils.to_cards("Ad3d4d")
+    print monte_carlo(hands)
 
 if __name__ == "__main__":
-    test()
+    main()

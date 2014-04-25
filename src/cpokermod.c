@@ -54,7 +54,7 @@ static int convert_cards(PyObject *pycard_list, uint32_t *cards, int ncards){
         PyList_SetItem(list, i, item); \
     }
 
-static PyObject *buildListFromArray( void *buffer, int len, char dtype){
+static PyObject *buildListFromArray( void *array, int len, char dtype){
 
     PyObject * plist;
     int i;
@@ -62,14 +62,14 @@ static PyObject *buildListFromArray( void *buffer, int len, char dtype){
     plist = PyList_New(len);
 
     switch (dtype){
-        case 'i': {long *iptr = (long*) buffer;
+        case 'i': {int *iptr = (int*) array;
                   SET_LIST_BY_TYPE(PyInt_FromLong, plist, iptr, len)
         break;}
-        case 'd': {double *dptr = (double*) buffer;
+        case 'd': {double *dptr = (double*) array;
                   SET_LIST_BY_TYPE(PyFloat_FromDouble, plist, dptr, len)
         break;}
         default:
-        printf("i'll only support int (long) or double, sorry\n");
+        printf("i'll only support int or double, sorry\n");
         exit(EXIT_FAILURE);
     }
     return plist;
@@ -89,14 +89,14 @@ static PyObject *cpoker_handvalue(PyObject *self, PyObject *args){
 }
 
 
-const char holdem_doc[] =
-"holdem(hand1, hand2, board)\n\n"
+const char holdem2p_doc[] =
+"holdem2p(hand1, hand2, board) -> integer\n\n"
 "Return the winner according to the following:\n"
 "0 -> hand1 wins\n"
 "1 -> hand2 wins\n"
 "2 -> tie\n";
 
-static PyObject *cpoker_holdem(PyObject *self, PyObject *args){
+static PyObject *cpoker_holdem2p(PyObject *self, PyObject *args){
     PyObject *pyh1, *pyh2, *pyboard;
     uint32_t ch1[2], ch2[2], cboard[5];
     if ( ! PyArg_ParseTuple(args, "OOO", &pyh1, &pyh2, &pyboard ) )
@@ -111,12 +111,48 @@ static PyObject *cpoker_holdem(PyObject *self, PyObject *args){
     if (convert_cards(pyh2, ch2, 2) == FAIL){
         return NULL;
     }
-    return (PyObject*) PyInt_FromLong(holdem(ch1, ch2, cboard));
+    return (PyObject*) PyInt_FromLong(holdem2p(ch1, ch2, cboard));
 }
 
 
+const char multi_holdem_doc[] =
+"multi_holdem(hands, board) -> list\n\n"
+"Return the indices of all hands tied for the win.\n"
+"hands -> list of hands\n"
+"board -> five card board\n";
+
+
+static PyObject *cpoker_multi_holdem(PyObject *self, PyObject *args){
+    PyObject *pyhands, *pyboard;
+    uint32_t chands[MAX_HANDS][2], cboard[5];
+    int winners[MAX_HANDS] = {-1,-1,-1,-1,-1};
+    int nhands, nwinners, i;
+
+    if ( ! PyArg_ParseTuple(args, "OO", &pyhands, &pyboard ) )
+        return NULL;
+
+    if ( (nhands = PyList_Size(pyhands)) == FAIL ){
+        PyErr_SetString(PyExc_TypeError, "multi_holdem requires a list of hands");
+        return NULL;
+    }
+
+    for (i = 0; i < nhands; i++){
+        if (convert_cards(PyList_GetItem(pyhands, i), chands[i], 2) == FAIL){
+            return NULL;
+        }
+    }
+
+    if (convert_cards(pyboard, cboard, 5) == FAIL){
+        return NULL;
+    }
+    nwinners = multi_holdem(chands, nhands, cboard, winners);
+    return (PyObject*) buildListFromArray(winners, nwinners, 'i');
+}
+
+
+
 const char rivervalue_doc[] =
-"rivervalue(hand, board, [optimistic])\n\n"
+"rivervalue(hand, board, [optimistic]) -> float\n\n"
 "Return the ev ( (wins + 0.5ties) / total ) of hand\n"
 "vs all 990 opposing hand combinations;\n\n"
 "Optionally, supplying True for optimistic returns\n"
@@ -152,7 +188,7 @@ static PyObject * cpoker_rivervalue ( PyObject * self, PyObject * args )
 }
 
 const char riverties_doc[] =
-"riverties(hand, board)\n\n"
+"riverties(hand, board) -> tuple\n\n"
 "Return the tuple <number of wins>, <number of ties>\n"
 "vs all 990 opposing hand combinations\n";
 
@@ -181,38 +217,65 @@ static PyObject * cpoker_riverties ( PyObject * self, PyObject * args )
     return (PyObject *) Py_BuildValue( "ii", value.wins, value.ties );
 }
 
-const char preflop_match_doc[] =
-"preflop_match(hand1, hand2)\n\n"
-"Return the ev of hand1 vs hand2";
+const char full_enumeration_doc[] =
+"full_enumeration(hands) -> list\n\n"
+"Return a list of evs for each respective hand.\n\n"
+"This is accomplished by counting wins and ties for\n"
+"each hand on every possible board combination.\n"
+"Ties are rewarded 1.0/ntied the score of a win.\n"
+"This is optimized for 2 players, ie. 3 players is around 3xslower.\n";
 
-static PyObject * cpoker_preflop_match ( PyObject * self, PyObject * args )
+
+static PyObject * cpoker_full_enumeration ( PyObject * self, PyObject * args )
 {
-    PyObject *pyh1, *pyh2;
-    uint32_t h1[2], h2[2];
-    double result;
+    PyObject *list;
+    uint32_t hands[MAX_HANDS][2];
+    double results[MAX_HANDS];
+    int i, nhands;
 
-    if (!PyArg_ParseTuple(args, "OO", &pyh1, &pyh2))
+    if (!PyArg_ParseTuple(args, "O", &list))
         return NULL;
 
-    if (convert_cards(pyh1, h1, 2) == FAIL){
-        return NULL;
-    }
-
-    if (convert_cards(pyh2, h2, 2) == FAIL){
+    if ( (nhands = PyList_Size(list)) < 1 ){ // this also happens if 'list' is not a list
+        PyErr_SetString(PyExc_TypeError, "full_enumeration requires a list of hands");
         return NULL;
     }
+    if (nhands == 1){
+        return (PyObject *) Py_BuildValue("[d]", 1.0);
+    }
 
-    result = preflop_match(h1, h2);
-    if ( result == -1 ){
+    for (i = 0; i < nhands; i++){
+        if (convert_cards(PyList_GetItem(list, i), hands[i], 2) == FAIL){
+            return NULL;
+        }
+    }
+
+    if (nhands == 2){
+        if ( (results[0] = enum2p(hands[0], hands[1])) == FAIL ){
+            PyErr_SetString(PyExc_ValueError, "duplicate cards");
+            return NULL;
+        }
+        results[1] = 1.0 - results[0];
+    }
+
+    else if ( full_enumeration(hands, results, nhands) == FAIL ){
         PyErr_SetString(PyExc_ValueError, "duplicate cards");
         return NULL;
     }
-    return (PyObject *) PyFloat_FromDouble( result );
+    return (PyObject *) buildListFromArray( results, nhands, 'd');
 }
 
 
-//for example
-#define GET_INDEX(c1, c2) c1 * 52 - c1 * (c1 + 1) / 2 + c2 - c1 - 1
+int GET_INDEX(uint32_t c1, uint32_t c2){
+    //hash sceme for holdem hand
+    if ( c1 > c2 ){
+        //swap algo
+        c1 = c1 ^ c2;
+        c2 = c1 ^ c2;
+        c1 = c1 ^ c2;
+    }
+    return c1 * 52 - c1 * (c1 + 1) / 2 + c2 - c1 - 1;
+}
 
 #define MAX_PREFLOP_GROUPS 32
 
@@ -351,7 +414,7 @@ static PyObject * cpoker_river_distribution(PyObject *self, PyObject *args){
     PyObject *pyhand, *pyboard;
     PyObject *phand_values = NULL;
     uint32_t hand[2], board[5], i;
-    long chart[MAX_PREFLOP_GROUPS];
+    int chart[MAX_PREFLOP_GROUPS];
 
     if (!PyArg_ParseTuple(args, "OO|O", &pyhand, &pyboard, &phand_values))
         return NULL;
@@ -406,10 +469,11 @@ void printdeck(void){
 
 static PyMethodDef cpokerMethods[] = {
     { "handvalue", cpoker_handvalue, METH_VARARGS },
-    { "holdem", cpoker_holdem, METH_VARARGS, holdem_doc },
+    { "holdem2p", cpoker_holdem2p, METH_VARARGS, holdem2p_doc },
+    { "multi_holdem", cpoker_multi_holdem, METH_VARARGS, multi_holdem_doc},
     { "rivervalue", cpoker_rivervalue, METH_VARARGS, rivervalue_doc },
     { "riverties", cpoker_riverties, METH_VARARGS, riverties_doc },
-    { "preflop_match", cpoker_preflop_match, METH_VARARGS, preflop_match_doc },
+    { "full_enumeration", cpoker_full_enumeration, METH_VARARGS, full_enumeration_doc },
     { "river_distribution", cpoker_river_distribution, METH_VARARGS, river_distribution_doc },
     { NULL, NULL }
 };

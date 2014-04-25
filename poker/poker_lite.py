@@ -241,7 +241,7 @@ def dohand(hand, board_info, ranks=RANKS, suits=SUITS):
     return phase2(val ^ (val >> 13))
 
 
-def holdem(h1, h2, board):
+def holdem2p(h1, h2, board):
     """Return an integer representing the winner of two
     holdem hands and a board.
     0 -> h1 wins

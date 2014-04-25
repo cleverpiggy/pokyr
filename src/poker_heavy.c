@@ -46,7 +46,7 @@ void printhand(uint32_t *hand, int n){
 }
 
 
-static uint16_t dohand(uint32_t c1, uint32_t c2, const partial const *data){
+static uint16_t dohand(uint32_t c1, uint32_t c2, const partial *data){
 
     uint64_t flush;
     int i;
@@ -67,7 +67,7 @@ static uint16_t dohand(uint32_t c1, uint32_t c2, const partial const *data){
 }
 
 
-int holdem(uint32_t h1[2], uint32_t h2[2], uint32_t board[5]){
+int holdem2p(uint32_t h1[2], uint32_t h2[2], uint32_t board[5]){
 
     partial data = {0, board};
     int i;
@@ -83,6 +83,33 @@ int holdem(uint32_t h1[2], uint32_t h2[2], uint32_t board[5]){
     if (v2 > v1)
         return 1;
     return 2;
+}
+
+
+int multi_holdem(uint32_t hands[MAX_HANDS][2], int n, uint32_t board[5], int winners_buf[]){
+
+    //Return the number of players tied for the win (usually one)
+    //assign indices in hands[] of the winners to winners[]
+    //    from the beginning to nwinners
+
+    partial data = {0, board};
+    int i, val, ties = 0, best = -1;
+
+    for (i = 0; i < 5; i++) {
+        data.val += Deck[board[i]];
+    }
+
+    for (i = 0; i < n; i++){
+        val = dohand(hands[i][0], hands[i][1], &data);
+        if (val > best){
+            winners_buf[(ties = 0)] = i;
+            best = val;
+        }
+        else if (val == best){
+            winners_buf[++ties] = i;
+        }
+    }
+    return ties + 1;
 }
 
 
@@ -105,8 +132,8 @@ struct rivervalue rivervalue (uint32_t hand[2], uint32_t board[5])
 {
     uint32_t dead[7], i, j;
 
-    uint64_t my_rank;
-    uint64_t his_rank;
+    uint16_t my_rank;
+    uint16_t his_rank;
     bool deck[52];
     struct rivervalue value = (struct rivervalue) {0, 0};
 
@@ -154,8 +181,34 @@ struct rivervalue rivervalue (uint32_t hand[2], uint32_t board[5])
 }
 
 
+// struct rivervalue rivervalue_vrange (uint32_t hand[2], uint32_t board[5], uint32_t **hands, int nhands)
+// //count the number of wins, losses, and ties vs all opponent combinations
+// {
+
+//     uint64_t my_rank;
+//     uint64_t his_rank;
+//     struct rivervalue value = (struct rivervalue) {0, 0};
+
+//     partial data = {0, board};
+
+//     my_rank = dohand(hand[0], hand[1], &data);
+
+//     //run the hands, skipping deck[card]=falses
+//     for (i = nhands + 1; --i; ){
+//         his_rank = dohand(hands[i][0], hands[i][1], &data);
+//         if (my_rank > his_rank){
+//             value.wins ++;
+//         }else if (my_rank == his_rank){
+//             value.ties ++;
+//         }
+//     }
+//     return value;
+// }
+
+
+
 //return the win% of h1
-double preflop_match(uint32_t h1[2], uint32_t h2[2]){
+double enum2p(uint32_t h1[2], uint32_t h2[2]){
     bool deck[52];
 
     uint32_t i, j, k, l, m, dead[4];
@@ -265,7 +318,7 @@ double preflop_match(uint32_t h1[2], uint32_t h2[2]){
 //more sane version of above, 10 -15% slower
 
 // //return the win% of h1
-// double preflop_match(uint32_t h1[2], uint32_t h2[2]){
+// double enum2p(uint32_t h1[2], uint32_t h2[2]){
 //     bool deck[52];
 
 //     uint32_t i, j, k, l, m, board[5], dead[4];
@@ -304,7 +357,7 @@ double preflop_match(uint32_t h1[2], uint32_t h2[2]){
 //                     for (m = l; m--;){
 //                         if (!deck[m]) continue;
 //                         board[4] = m;
-//                         results[holdem(h1, h2, board)]++;
+//                         results[holdem2p(h1, h2, board)]++;
 //                     }
 //                 }
 //             }
@@ -314,7 +367,70 @@ double preflop_match(uint32_t h1[2], uint32_t h2[2]){
 // }
 
 
-int river_distribution (uint32_t hand[2], uint32_t board[5], long chart[], dictEntry *dict)
+int full_enumeration(uint32_t hands[MAX_HANDS][2], double results[], int nhands){
+    //hands ->array of two card hands with no duplicates
+    //results -> buffer to hold the results, ev of each hand
+    //n -> number of hands
+    bool deck[52];
+
+    uint32_t i, j, k, l, m, board[5];
+    uint32_t dead[MAX_HANDS * 2];
+    int n, nwinners, nrunnouts = 0, winners[MAX_HANDS];
+
+    //set deck positions of dead cards to false
+    for (i = 52; i--; )
+        deck[i] = true;
+
+    for (i = 0, j = 0; i < nhands; i++){
+        dead[j] = hands[i][0];
+        deck[dead[j++]] = false;
+        dead[j] = hands[i][1];
+        deck[dead[j++]] = false;
+        results[i] = 0;
+    }
+
+    if ( dup_check(dead, nhands * 2) == FAIL){
+        return FAIL;
+    }
+
+    for (i = 52; --i;){
+        if (!deck[i]) continue;
+        board[0] = i;
+        for (j = i; j--;){
+            if (!deck[j]) continue;
+            board[1] = j;
+            for (k = j; k--;){
+                if (!deck[k]) continue;
+                board[2] = k;
+                for (l = k; l--;){
+                    if (!deck[l]) continue;
+                    board[3] = l;
+                    for (m = l; m--;){
+                        if (!deck[m]) continue;
+                        board[4] = m;
+                        nwinners = multi_holdem(hands, nhands, board, winners);
+                        nrunnouts++;
+                        if (nwinners == 1)
+                            results[winners[0]] += 1.0;
+                        else{
+                            for (n = nwinners - 1; n >= 0; n--){
+                                results[winners[n]] += 1.0 / nwinners;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    for (i = 0; i < nhands; i++){
+        results[i] /= nrunnouts;
+    }
+    return SUCCESS;
+}
+
+
+
+int river_distribution (uint32_t hand[2], uint32_t board[5], int chart[], dictEntry *dict)
 {
     uint32_t dead[7], i, j;
 
