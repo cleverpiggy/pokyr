@@ -24,7 +24,7 @@ static int convert_cards(PyObject *pycard_list, uint32_t *cards, int ncards){
     PyObject * pycard;
 
     if ( !PyList_Check(pycard_list) ){
-        PyErr_SetString(PyExc_TypeError, "Hand and board must be lists");
+        PyErr_SetString(PyExc_TypeError, "Hands and boards must be lists");
         return FAIL;
     }
 
@@ -217,8 +217,55 @@ static PyObject * cpoker_riverties ( PyObject * self, PyObject * args )
     return (PyObject *) Py_BuildValue( "ii", value.wins, value.ties );
 }
 
+// const char full_enumeration_doc[] =
+// "full_enumeration(hands) -> list\n\n"
+// "Return a list of evs for each respective hand.\n\n"
+// "This is accomplished by counting wins and ties for\n"
+// "each hand on every possible board combination.\n"
+// "Ties are rewarded 1.0/ntied the score of a win.\n"
+// "This is optimized for 2 players, ie. 3 players is around 3xslower.\n";
+
+
+// static PyObject * cpoker_full_enumeration ( PyObject * self, PyObject * args )
+// {
+//     PyObject *list;
+//     uint32_t hands[MAX_HANDS][2];
+//     double results[MAX_HANDS];
+//     int i, nhands;
+
+//     if (!PyArg_ParseTuple(args, "O", &list))
+//         return NULL;
+
+//     if ( (nhands = PyList_Size(list)) < 1 ){ // this also happens if 'list' is not a list
+//         PyErr_SetString(PyExc_TypeError, "full_enumeration requires a list of hands");
+//         return NULL;
+//     }
+//     if (nhands == 1){
+//         return (PyObject *) Py_BuildValue("[d]", 1.0);
+//     }
+
+//     for (i = 0; i < nhands; i++){
+//         if (convert_cards(PyList_GetItem(list, i), hands[i], 2) == FAIL){
+//             return NULL;
+//         }
+//     }
+
+//     if (nhands == 2){
+//         if ( (results[0] = enum2p(hands[0], hands[1])) == FAIL ){
+//             PyErr_SetString(PyExc_ValueError, "duplicate cards");
+//             return NULL;
+//         }
+//         results[1] = 1.0 - results[0];
+//     }
+
+//     else if ( full_enumeration(hands, results, nhands) == FAIL ){
+//         PyErr_SetString(PyExc_ValueError, "duplicate cards");
+//         return NULL;
+//     }
+//     return (PyObject *) buildListFromArray( results, nhands, 'd');
+// }
 const char full_enumeration_doc[] =
-"full_enumeration(hands) -> list\n\n"
+"full_enumeration(hands[,...]) -> list\n\n"
 "Return a list of evs for each respective hand.\n\n"
 "This is accomplished by counting wins and ties for\n"
 "each hand on every possible board combination.\n"
@@ -228,24 +275,35 @@ const char full_enumeration_doc[] =
 
 static PyObject * cpoker_full_enumeration ( PyObject * self, PyObject * args )
 {
-    PyObject *list;
+    PyObject *pyhands;
     uint32_t hands[MAX_HANDS][2];
     double results[MAX_HANDS];
     int i, nhands;
 
-    if (!PyArg_ParseTuple(args, "O", &list))
-        return NULL;
-
-    if ( (nhands = PyList_Size(list)) < 1 ){ // this also happens if 'list' is not a list
-        PyErr_SetString(PyExc_TypeError, "full_enumeration requires a list of hands");
-        return NULL;
+    //case user passed multiple hand arguments
+    if ( (nhands = PyTuple_Size(args)) > 1 ){
+        pyhands = args;
     }
-    if (nhands == 1){
-        return (PyObject *) Py_BuildValue("[d]", 1.0);
+
+    //case user passed one arg (hopefully a list of hands)
+    else{
+
+        if (!PyArg_ParseTuple(args, "O", &pyhands))
+            return NULL;
+
+        if ( (nhands = PyList_Size(pyhands)) <= 1 ){ // this also happens if 'pyhands' is not a list
+            PyErr_SetString(PyExc_TypeError, "full_enumeration requires a list of hands");
+            return NULL;
+        }
+    }
+
+    if (nhands > MAX_HANDS){
+        PyErr_SetString(PyExc_ValueError, "too many hands");
+        return NULL;
     }
 
     for (i = 0; i < nhands; i++){
-        if (convert_cards(PyList_GetItem(list, i), hands[i], 2) == FAIL){
+        if (convert_cards(PySequence_GetItem(pyhands, i), hands[i], 2) == FAIL){
             return NULL;
         }
     }
@@ -264,6 +322,7 @@ static PyObject * cpoker_full_enumeration ( PyObject * self, PyObject * args )
     }
     return (PyObject *) buildListFromArray( results, nhands, 'd');
 }
+
 
 
 int GET_INDEX(uint32_t c1, uint32_t c2){

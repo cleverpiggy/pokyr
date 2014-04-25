@@ -28,8 +28,9 @@ or integers.
 ```python
 >>> from poker import cpoker
 >>> from poker.utils import pretty_args
->>> pretty_args(cpoker.preflop_match)("AsKd", "8c2s")
-0.6753362720638392
+>>> #return the evs of a match between any number of hands
+>>> pretty_args(cpoker.full_enumeration)("AsKd", "8c2s")
+[0.6753362720638392, 0.32466372793616083]
 >>> # percentile on river vs all 990 hand combos
 >>> pretty_args(cpoker.rivervalue)("As Kd", "Ks Qh Jc 8s 8d")
 0.8585858585858586
