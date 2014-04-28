@@ -1,4 +1,4 @@
-pypoker-tools
+pokyr
 =============
 
 This is a python library that provides routines for very fast poker hand
@@ -29,8 +29,11 @@ or integers.
 >>> from poker import cpoker
 >>> from poker.utils import pretty_args
 >>> #return the evs of a match between any number of hands
->>> pretty_args(cpoker.full_enumeration)("AsKd", "8c2s")
+>>> enum = pretty_args(cpoker.full_enumeration)
+>>> enum(["AsKd", "8c2s"])
 [0.6753362720638392, 0.32466372793616083]
+>>> enum(["AsKd", "7h 8h", "6c 6d"], "Kc 6h 9h")
+[0.021040974529346623, 0.44518272425249167, 0.5337763012181617]
 >>> # percentile on river vs all 990 hand combos
 >>> pretty_args(cpoker.rivervalue)("As Kd", "Ks Qh Jc 8s 8d")
 0.8585858585858586
@@ -39,6 +42,7 @@ or integers.
 Compile and Install
 -------
 OSX -> Xcode should provide you with everything you need.
+
 Linux -> You just need python-dev and gcc and you should be good to go.
 ```
 $python setup.py install

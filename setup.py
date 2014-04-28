@@ -23,13 +23,13 @@ with open("README.md") as f:
     long_description = f.read()
 
 setup(
-    name='pypoker-tools',
+    name='pokyr',
     version='0.1',
     ext_modules=[module],
     packages=['poker'],
     author='Allen Boyd Cunningham',
     author_email='cleverfoundation@gmail.com',
-    url='https://github.com/cleverpiggy/pypoker-tools',
+    url='https://github.com/cleverpiggy/pokyr',
     description=__doc__,
     long_description=long_description,
     license='GPL',
