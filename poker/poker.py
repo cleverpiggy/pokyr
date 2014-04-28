@@ -170,8 +170,14 @@ def holdem2p(h1, h2, board, deck=_DECK):
     return 2
 
 
+_schemes2p = [[0], [1], [0,1]]
+
 def multi_holdem(hands, board, deck=_DECK):
     """Return a list indices representing hands that win or tie."""
+
+    if len(hands) == 2: #them holdem2p is optimal
+        return _schemes2p[holdem2p(hands[0], hands[1], board)]
+
     boardval = 0
     for c in board:
         boardval += deck[c]
@@ -188,47 +194,23 @@ def multi_holdem(hands, board, deck=_DECK):
     return results
 
 
-def monte_carlo(ranges, board=[], trials=100000):
+def monte_carlo(hands, trials=100000):
     """
     Return ev of each player.
 
-    ranges -> list of ranges for each player
-              A range is a list of hands.
-              For instance you must include all
-              combinations of AA and KK (12 hands)
-              for KK+
-              There can be duplicate cards in the`
-              ranges of each player but there must
-              not be cards duplicated in the board.
-    board -> any # of cards 0-4.
-    Run approximately 'trials' simulations by randomly
-    choosing a non-conflicting hand from each of the ranges
-    then dealing out the rest of the deck for the needed
-    board cards.
+    hands -> list of 2 - 22 hands
+    trials -> the approximate number of simulations to run
     """
-    nplayers = len(ranges)
+    nplayers = len(hands)
     wins = [0 for __ in range(nplayers)]
-    choice = random.choice
-    needed_cards = 5 - len(board)
-    nboards = (52 - len(board) - nplayers * 2) / needed_cards
-    scheme = [needed_cards] * nboards
-    Deck = utils.Deck
+
+    nboards = (52 - nplayers * 2) / 5
+    scheme = [5] * nboards
+    deck = utils.Deck(sum(hands, []))
+
     for t in xrange(trials / nboards):
-        #we have to subtract hands from deck
-        #so it will be faster to do some runnouts
-        #for each sample of player hands
-        #I believe it should be correct.
-        dups = True
-        while dups is True:
-            hands = [choice(r) for r in ranges]
-            sumh = sum(hands, [])
-            if len(set(sumh)) == len(sumh):
-                dups = False
-        dead = sum(hands, board)
-        deck = Deck(dead)
-        boards = deck.deal(scheme)
-        for b in boards:
-            winners = multi_holdem(hands, b + board)
+        for b in deck.deal(scheme):
+            winners = multi_holdem(hands, b)
             nwinners = len(winners)
             for w in winners:
                 wins[w] += 1.0 / nwinners
@@ -282,12 +264,3 @@ def enum2p(h1, h2, board=[]):
 
     ev1 = (wins[0] + .5 * wins[2]) / sum(wins)
     return [ev1, 1.0 - ev1]
-
-
-def main():
-    hands = [[utils.to_cards(h) for h in ["AcKc", "2c2d"]], [utils.to_cards("As2c")]]
-    board = utils.to_cards("Ad3d4d")
-    print monte_carlo(hands)
-
-if __name__ == "__main__":
-    main()

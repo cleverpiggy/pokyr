@@ -173,9 +173,88 @@ def to_cards(hand):
     return [Card(c) for c in hand_]
 
 
+# def pretty_args(ugly_func):
+#     """
+#     Return a function that can use pretty cards as args.
+
+#     >>> def f(a, b, c):
+#     ...     return a, b, c
+#     >>> pa = pretty_args(f)("As Ks", "I have the As Ks", 3.14)
+#     >>> pa == (to_cards("As Ks"), "I have the As Ks", 3.14)
+#     True
+#     >>> pa = pretty_args(f)("bottybot", "As", .123)
+#     >>> pa == ("bottybot", to_cards("As"), .123)
+#     True
+#     """
+#     def func(*args, **kwargs):
+#         ugly_args = []
+#         for a in args:
+#             u_arg = a
+#             if isinstance(a, str):
+#                 try:
+#                     u_arg = to_cards(a)
+#                 except TypeError:
+#                     u_arg = a
+#             ugly_args.append(u_arg)
+#         for k, v in kwargs.items():
+#             u_arg = v
+#             if isinstance(v, str):
+#                 try:
+#                     u_arg = to_cards(v)
+#                 except TypeError:
+#                     u_arg = v
+#             kwargs[k] = u_arg
+#         return ugly_func(*ugly_args, **kwargs)
+#     update_wrapper(func, ugly_func)
+#     return func
+
+
+def _convert(args, kwargs):
+    #helper for pretty_args
+    #returns a list and a dictionary with card strings converted to cards
+    """
+    >>> pa = _convert(("As Ks", "I have the As Ks", 3.14), {})
+    >>> pa == ([to_cards("As Ks"), "I have the As Ks", 3.14], {})
+    True
+    >>> pa = _convert(("bottybot", "As", .123), {})
+    >>> pa == (["bottybot", to_cards("As"), .123], {})
+    True
+    >>> pa = _convert(("bottybot", ["As", "Kd Jd"], .123), {})
+    >>> pa == (["bottybot", [to_cards("As"), to_cards("Kd Jd")], .123], {})
+    True
+    >>> pa = _convert(["bottybot", ["As", "Kd Jd"]], {"c":["Js", "4d 3d"]})
+    >>> pa == (["bottybot", [to_cards("As"), to_cards("Kd Jd")]], {"c":[to_cards("Js"), to_cards("4d 3d")]})
+    True
+    """
+    ugly_args = []
+    for a in args:
+        u_arg = a
+        if isinstance(a, str):
+            try:
+                u_arg = to_cards(a)
+            except TypeError:
+                u_arg = a
+        if isinstance(a, list):
+            u_arg = _convert(a, {})[0]
+        ugly_args.append(u_arg)
+
+    for k, v in kwargs.items():
+        u_arg = v
+        if isinstance(v, str):
+            try:
+                u_arg = to_cards(v)
+            except TypeError:
+                u_arg = v
+        if isinstance(v, list):
+            u_arg = _convert(v, {})[0]
+        kwargs[k] = u_arg
+    return ugly_args, kwargs
+
+
 def pretty_args(ugly_func):
     """
-    Return a function that can use pretty cards as args.
+    Return a function that can use pretty cards or lists
+    of pretty cards as args.
 
     >>> def f(a, b, c):
     ...     return a, b, c
@@ -185,26 +264,20 @@ def pretty_args(ugly_func):
     >>> pa = pretty_args(f)("bottybot", "As", .123)
     >>> pa == ("bottybot", to_cards("As"), .123)
     True
+    >>> pa = pretty_args(f)("bottybot", ["As", "Kd Jd"], .123)
+    >>> pa == ("bottybot", [to_cards("As"), to_cards("Kd Jd")], .123)
+    True
+    >>> def kwf(a, b, c=None):
+    ...     return a, b, c
+    >>> pa = pretty_args(kwf)("bottybot", ["As", "Kd Jd"], c=["Js", "4d 3d"])
+    >>> pa == ("bottybot", [to_cards("As"), to_cards("Kd Jd")], [to_cards("Js"), to_cards("4d 3d")])
+    True
     """
+
     def func(*args, **kwargs):
-        ugly_args = []
-        for a in args:
-            u_arg = a
-            if isinstance(a, str):
-                try:
-                    u_arg = to_cards(a)
-                except TypeError:
-                    u_arg = a
-            ugly_args.append(u_arg)
-        for k, v in kwargs.items():
-            u_arg = v
-            if isinstance(v, str):
-                try:
-                    u_arg = to_cards(v)
-                except TypeError:
-                    u_arg = v
-            kwargs[k] = u_arg
+        ugly_args, kwargs = _convert(args, kwargs)
         return ugly_func(*ugly_args, **kwargs)
+
     update_wrapper(func, ugly_func)
     return func
 

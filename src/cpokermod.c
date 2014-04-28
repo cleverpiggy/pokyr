@@ -76,6 +76,14 @@ static PyObject *buildListFromArray( void *array, int len, char dtype){
 }
 
 
+const char handvalue_doc[] =
+"handvalue(hand) -> long\n\n"
+"Return a numeric value for a seven card hand.\n"
+"This is the same value as return in the pure python\n"
+"module but different than is internally used here.\n"
+"You are guarenteed higher values for better hands and\n"
+"the same value for tied hands.\n";
+
 static PyObject *cpoker_handvalue(PyObject *self, PyObject *args){
     PyObject *pyhand;
     uint32_t chand[7];
@@ -150,13 +158,14 @@ static PyObject *cpoker_multi_holdem(PyObject *self, PyObject *args){
 }
 
 
-
 const char rivervalue_doc[] =
 "rivervalue(hand, board, [optimistic]) -> float\n\n"
 "Return the ev ( (wins + 0.5ties) / total ) of hand\n"
 "vs all 990 opposing hand combinations;\n\n"
 "Optionally, supplying True for optimistic returns\n"
-"(wins + ties) / total.\n";
+"(wins + ties) / total.\n"
+"This is a convenience function as the result can\n"
+"easily be derived from riverties().\n";
 
 static PyObject * cpoker_rivervalue ( PyObject * self, PyObject * args )
 {
@@ -217,84 +226,98 @@ static PyObject * cpoker_riverties ( PyObject * self, PyObject * args )
     return (PyObject *) Py_BuildValue( "ii", value.wins, value.ties );
 }
 
-// const char full_enumeration_doc[] =
-// "full_enumeration(hands) -> list\n\n"
-// "Return a list of evs for each respective hand.\n\n"
-// "This is accomplished by counting wins and ties for\n"
-// "each hand on every possible board combination.\n"
-// "Ties are rewarded 1.0/ntied the score of a win.\n"
-// "This is optimized for 2 players, ie. 3 players is around 3xslower.\n";
 
-
-// static PyObject * cpoker_full_enumeration ( PyObject * self, PyObject * args )
-// {
-//     PyObject *list;
-//     uint32_t hands[MAX_HANDS][2];
-//     double results[MAX_HANDS];
-//     int i, nhands;
-
-//     if (!PyArg_ParseTuple(args, "O", &list))
-//         return NULL;
-
-//     if ( (nhands = PyList_Size(list)) < 1 ){ // this also happens if 'list' is not a list
-//         PyErr_SetString(PyExc_TypeError, "full_enumeration requires a list of hands");
-//         return NULL;
-//     }
-//     if (nhands == 1){
-//         return (PyObject *) Py_BuildValue("[d]", 1.0);
-//     }
-
-//     for (i = 0; i < nhands; i++){
-//         if (convert_cards(PyList_GetItem(list, i), hands[i], 2) == FAIL){
-//             return NULL;
-//         }
-//     }
-
-//     if (nhands == 2){
-//         if ( (results[0] = enum2p(hands[0], hands[1])) == FAIL ){
-//             PyErr_SetString(PyExc_ValueError, "duplicate cards");
-//             return NULL;
-//         }
-//         results[1] = 1.0 - results[0];
-//     }
-
-//     else if ( full_enumeration(hands, results, nhands) == FAIL ){
-//         PyErr_SetString(PyExc_ValueError, "duplicate cards");
-//         return NULL;
-//     }
-//     return (PyObject *) buildListFromArray( results, nhands, 'd');
-// }
 const char full_enumeration_doc[] =
-"full_enumeration(hands[,...]) -> list\n\n"
+"full_enumeration(hands, [board]) -> list\n\n"
 "Return a list of evs for each respective hand.\n\n"
 "This is accomplished by counting wins and ties for\n"
-"each hand on every possible board combination.\n"
+"each hand on every possible board runnout.\n"
 "Ties are rewarded 1.0/ntied the score of a win.\n"
 "This is optimized for 2 players, ie. 3 players is around 3xslower.\n";
 
+int full_enumeration(uint32_t hands[MAX_HANDS][2], int nhands, uint32_t board[5], int nboard, double results[]);
 
+
+//change to allow board and use a list for hands
 static PyObject * cpoker_full_enumeration ( PyObject * self, PyObject * args )
 {
+    PyObject *pyhands, *pyboard = NULL;
+    uint32_t hands[MAX_HANDS][2], board[5];
+    double results[MAX_HANDS];
+    int i, nhands, nboard = 0;
+
+    if (!PyArg_ParseTuple(args, "O|O", &pyhands, &pyboard))
+        return NULL;
+
+    if ( (nhands = PyList_Size(pyhands)) <= 1 ){ // this also happens if 'pyhands' is not a list
+        PyErr_SetString(PyExc_TypeError, "full_enumeration requires a list of hands");
+        return NULL;
+    }
+
+    if (nhands > MAX_HANDS){
+        PyErr_SetString(PyExc_ValueError, "too many hands");
+        return NULL;
+    }
+
+    if ( pyboard && ( (nboard = PyList_Size(pyboard)) > 4 || nboard == FAIL ) ){
+        PyErr_SetString(PyExc_ValueError, "board must be a list of 0-4 cards");
+        return NULL;
+    }
+
+    if ( pyboard && convert_cards(pyboard, board, nboard) == FAIL){
+        return NULL;
+    }
+
+    for (i = 0; i < nhands; i++){
+        if (convert_cards(PyList_GetItem(pyhands, i), hands[i], 2) == FAIL){
+            return NULL;
+        }
+    }
+    if (nhands == 2 && !nboard){
+        if ( (results[0] = enum2p(hands[0], hands[1])) == FAIL ){
+            PyErr_SetString(PyExc_ValueError, "duplicate cards");
+            return NULL;
+        }
+        results[1] = 1.0 - results[0];
+    }
+    else if ( full_enumeration(hands, nhands, board, nboard, results) == FAIL ){
+        PyErr_SetString(PyExc_ValueError, "duplicate cards");
+        return NULL;
+    }
+    return (PyObject *) buildListFromArray( results, nhands, 'd');
+}
+
+
+const char monte_carlo_doc[] =
+"monte_carlo(hands, [n]) -> list\n\n"
+"Return a list of evs for each respective hand.\n\n"
+"This is accomplished by counting wins and ties\n"
+"for each on many random deals.\n"
+"Ties are rewarded 1.0/ntied the score of a win.\n"
+"You can optionally supply the number of deals which\n"
+"defaults to 100000.  Be aware that choosing a number\n"
+"much higher than that will not result in much time\n"
+"saved over full_enumeration.\n"
+"No board option is provided as in that case\n"
+"full_enumeration will always be the better option.\n";
+
+
+#define DEFAULT_RUNS 100000
+
+static PyObject *cpoker_monte_carlo ( PyObject * self, PyObject * args )
+{
+
     PyObject *pyhands;
     uint32_t hands[MAX_HANDS][2];
     double results[MAX_HANDS];
-    int i, nhands;
+    int i, nhands, runs = DEFAULT_RUNS;
 
-    //case user passed multiple hand arguments
-    if ( (nhands = PyTuple_Size(args)) > 1 ){
-        pyhands = args;
-    }
+    if (!PyArg_ParseTuple(args, "O|i", &pyhands, &runs))
+        return NULL;
 
-    //case user passed one arg (hopefully a list of hands)
-    else{
-
-        if (!PyArg_ParseTuple(args, "O", &pyhands))
-            return NULL;
-
-        if ( (nhands = PyList_Size(pyhands)) <= 1 ){ // this also happens if 'pyhands' is not a list
-            PyErr_SetString(PyExc_TypeError, "full_enumeration requires a list of hands");
-            return NULL;
-        }
+    if ( (nhands = PyList_Size(pyhands)) <= 1 ){ // this also happens if 'pyhands' is not a list
+        PyErr_SetString(PyExc_TypeError, "monte_carlo requires a list of hands");
+        return NULL;
     }
 
     if (nhands > MAX_HANDS){
@@ -303,20 +326,12 @@ static PyObject * cpoker_full_enumeration ( PyObject * self, PyObject * args )
     }
 
     for (i = 0; i < nhands; i++){
-        if (convert_cards(PySequence_GetItem(pyhands, i), hands[i], 2) == FAIL){
+        if (convert_cards(PyList_GetItem(pyhands, i), hands[i], 2) == FAIL){
             return NULL;
         }
     }
 
-    if (nhands == 2){
-        if ( (results[0] = enum2p(hands[0], hands[1])) == FAIL ){
-            PyErr_SetString(PyExc_ValueError, "duplicate cards");
-            return NULL;
-        }
-        results[1] = 1.0 - results[0];
-    }
-
-    else if ( full_enumeration(hands, results, nhands) == FAIL ){
+    if ( monte_carlo(hands, nhands, runs, results) == FAIL ){
         PyErr_SetString(PyExc_ValueError, "duplicate cards");
         return NULL;
     }
@@ -445,7 +460,7 @@ int set_dict ( PyObject *phand_values, dictEntry handDict[] )
 }
 
 const char river_distribution_doc[] =
-"river_distribution(hand, board, [hand_values])\n\n"
+"river_distribution(hand, board, [hand_values]) -> list\n\n"
 "Return a histogram showing how your hand does against\n"
 "different groups of preflop hands.\n\n"
 "The preflop groups are set by hand_values, which is saved\n"
@@ -459,6 +474,8 @@ const char river_distribution_doc[] =
 "    Dictionary keys must be tuples of cards with the smallest\n"
 "    of the two cards first.\n"
 "    List items must be the values sorted by keys.\n"
+"    (ie list[0] is the numberic value you've assigned to the\n"
+"    hand represented by (0, 1) (aka AcAd).\n"
 "    Values must be contiguous integers starting from 0.\n";
 
 static PyObject * cpoker_river_distribution(PyObject *self, PyObject *args){
@@ -527,15 +544,17 @@ void printdeck(void){
 
 
 static PyMethodDef cpokerMethods[] = {
-    { "handvalue", cpoker_handvalue, METH_VARARGS },
+    { "handvalue", cpoker_handvalue, METH_VARARGS, handvalue_doc },
     { "holdem2p", cpoker_holdem2p, METH_VARARGS, holdem2p_doc },
     { "multi_holdem", cpoker_multi_holdem, METH_VARARGS, multi_holdem_doc},
     { "rivervalue", cpoker_rivervalue, METH_VARARGS, rivervalue_doc },
     { "riverties", cpoker_riverties, METH_VARARGS, riverties_doc },
     { "full_enumeration", cpoker_full_enumeration, METH_VARARGS, full_enumeration_doc },
+    { "monte_carlo", cpoker_monte_carlo, METH_VARARGS, monte_carlo_doc },
     { "river_distribution", cpoker_river_distribution, METH_VARARGS, river_distribution_doc },
     { NULL, NULL }
 };
+
 
 
 PyMODINIT_FUNC initcpoker (void)

@@ -113,28 +113,41 @@ int multi_holdem(uint32_t hands[MAX_HANDS][2], int n, uint32_t board[5], int win
 }
 
 
-static int dup_check (uint32_t cards[], int num){
-    int i, j;
+int set_dead(void *cards1_, int n1, void *cards2_, int n2, bool dead[52]){
+    //assign true to all positions in deck that are listed in cards1
+    //or cards2.  otherwise false.
+    //Return FAIL if there were duplicate cards
+    int i;
+    uint32_t *cards1 = (uint32_t*) cards1_;
+    uint32_t *cards2 = (uint32_t*) cards2_;
 
-    for (i = 0; i < num; i++){
-        for (j = i + 1; j < num; j++){
-            if ( cards[i] == cards[j] ){
-                return FAIL;
-            }
+    for (i = 52; i--;)
+        dead[i] = false;
+
+    for (i = 0; i < n1; i++){
+        if (dead[cards1[i]]){ //duplicate card
+            return FAIL;
         }
+        dead[cards1[i]] = true;
     }
-    return 0;
+    for (i = 0; i < n2; i++){
+        if (dead[cards2[i]]){ //duplicate card
+            return FAIL;
+        }
+        dead[cards2[i]] = true;
+    }
+    return SUCCESS;
 }
 
 
 struct rivervalue rivervalue (uint32_t hand[2], uint32_t board[5])
 //count the number of wins, losses, and ties vs all opponent combinations
 {
-    uint32_t dead[7], i, j;
+    uint32_t i, j;
 
     uint16_t my_rank;
     uint16_t his_rank;
-    bool deck[52];
+    bool dead[52];
     struct rivervalue value = (struct rivervalue) {0, 0};
 
     partial data = {0, board};
@@ -142,31 +155,18 @@ struct rivervalue rivervalue (uint32_t hand[2], uint32_t board[5])
         data.val += Deck[board[i]];
     }
 
-    //set deck positions of dead cards to false
-    for (i = 52; i--; )
-        deck[i] = true;
-
-    for (i = 5; i--; ){
-        dead[i] = board[i];
-        deck[dead[i]] = false;
-    }
-
-    dead[5] = hand[0];
-    dead[6] = hand[1];
-    if ( dup_check(dead, 7) == FAIL){
+    if (set_dead(hand, 2, board, 5, dead) == FAIL){
         value.wins = FAIL;
         return value;
     }
-    deck[hand[0]] = false;
-    deck[hand[1]] = false;
 
     my_rank = dohand(hand[0], hand[1], &data);
 
     //run the hands, skipping deck[card]=falses
     for (i = 52; --i; ){
-        if ( deck[i] ){
+        if ( !dead[i] ){
             for ( j = i; j--; ){
-                if ( deck[j] ){
+                if ( !dead[j] ){
                     his_rank = dohand(i, j, &data);
                     if (my_rank > his_rank){
                         value.wins ++;
@@ -181,37 +181,12 @@ struct rivervalue rivervalue (uint32_t hand[2], uint32_t board[5])
 }
 
 
-// struct rivervalue rivervalue_vrange (uint32_t hand[2], uint32_t board[5], uint32_t **hands, int nhands)
-// //count the number of wins, losses, and ties vs all opponent combinations
-// {
-
-//     uint64_t my_rank;
-//     uint64_t his_rank;
-//     struct rivervalue value = (struct rivervalue) {0, 0};
-
-//     partial data = {0, board};
-
-//     my_rank = dohand(hand[0], hand[1], &data);
-
-//     //run the hands, skipping deck[card]=falses
-//     for (i = nhands + 1; --i; ){
-//         his_rank = dohand(hands[i][0], hands[i][1], &data);
-//         if (my_rank > his_rank){
-//             value.wins ++;
-//         }else if (my_rank == his_rank){
-//             value.ties ++;
-//         }
-//     }
-//     return value;
-// }
-
-
-
 //return the win% of h1
+//super ugly optimized for two hands preflop
 double enum2p(uint32_t h1[2], uint32_t h2[2]){
-    bool deck[52];
+    bool dead[52];
 
-    uint32_t i, j, k, l, m, dead[4];
+    uint32_t i, j, k, l, m;
     uint32_t results[3] = {0, 0, 0};
 
     const uint64_t flush1 = GET_BIT(h1[0]) + GET_BIT(h1[1]);
@@ -223,52 +198,35 @@ double enum2p(uint32_t h1[2], uint32_t h2[2]){
     uint32_t temp1, temp2;
     uint64_t tempflush1, tempflush2;
 
-
-    //set deck positions of dead cards to false
-    for (i = 52; i--; )
-        deck[i] = true;
-
-    dead[0] = h1[0];
-    dead[1] = h1[1];
-    dead[2] = h2[0];
-    dead[3] = h2[1];
-
-    if ( dup_check(dead, 4) == FAIL){
+    if (set_dead(h1, 2, h2, 2, dead) == FAIL)
         return FAIL;
-    }
-
-    deck[h1[0]] = false;
-    deck[h1[1]] = false;
-    deck[h2[0]] = false;
-    deck[h2[1]] = false;
 
     for (i = 52; --i;){
-        if (!deck[i]) continue;
+        if (dead[i]) continue;
         //board[0] = i;
         vals[0] = Deck[i];
 
         for (j = i; j--;){
-            if (!deck[j]) continue;
+            if (dead[j]) continue;
             //board[1] = j;
             vals[1] = vals[0] + Deck[j];
 
             for (k = j; k--;){
-                if (!deck[k]) continue;
+                if (dead[k]) continue;
                 //board[2] = k;
                 vals[2] = vals[1] + Deck[k];
 
                 for (l = k; l--;){
-                    if (!deck[l]) continue;
+                    if (dead[l]) continue;
                     //board[3] = l;
                     vals[3] = vals[2] + Deck[l];
 
                     for (m = l; m--;){
-                        if (!deck[m]) continue;
+                        if (dead[m]) continue;
                         //board[4] = m;
                         vals[4] = vals[3] + Deck[m];
                         temp1 = vals[4] + h1val;
                         temp2 = vals[4] + h2val;
-
 
                         if ( isFlushTable[(temp1 >> SUITSHIFT)] != FAIL ){
 
@@ -283,7 +241,6 @@ double enum2p(uint32_t h1[2], uint32_t h2[2]){
                             temp1 = Rank_Table[temp1 & RANKMASK];
                         }
 
-
                         if ( isFlushTable[(temp2 >> SUITSHIFT)] != FAIL ){
 
                             tempflush2 = flush2 + GET_BIT(i) + GET_BIT(j) + GET_BIT(k) + GET_BIT(l) + GET_BIT(m);
@@ -296,7 +253,6 @@ double enum2p(uint32_t h1[2], uint32_t h2[2]){
                         else{
                             temp2 = Rank_Table[temp2 & RANKMASK];
                         }
-
 
                         if (temp1 > temp2){
                             results[0] ++;
@@ -315,113 +271,110 @@ double enum2p(uint32_t h1[2], uint32_t h2[2]){
     return (results[0] + 0.5 * (double) results[2]) / (results[0] + results[1]+ results[2]);
 }
 
-//more sane version of above, 10 -15% slower
 
-// //return the win% of h1
-// double enum2p(uint32_t h1[2], uint32_t h2[2]){
-//     bool deck[52];
+int monte_carlo(uint32_t hands[MAX_HANDS][2], int nhands, int nruns, double results[]){
+    //no board because full_enumeration should be fast enough
 
-//     uint32_t i, j, k, l, m, board[5], dead[4];
-//     uint32_t results[3] = {0, 0, 0};
+    int deal(uint32_t [], int);
+    int initdeck(bool [52]);
 
-//     //set deck positions of dead cards to false
-//     for (i = 52; i--; )
-//         deck[i] = true;
+    int i, n, nwinners, winners[MAX_HANDS];
+    uint32_t board[5];
+    bool dead[52];
 
-//     dead[0] = h1[0];
-//     dead[1] = h1[1];
-//     dead[2] = h2[0];
-//     dead[3] = h2[1];
+    if (set_dead(hands, nhands * 2, NULL, 0, dead) == FAIL)
+        return FAIL;
+    if (initdeck(dead) == FAIL)
+        return FAIL;
 
-//     if ( dup_check(dead, 4) == FAIL){
-//         return FAIL;
-//     }
+    for (i = 0; i < nhands; results[i++] = 0.0);
 
-//     deck[h1[0]] = false;
-//     deck[h1[1]] = false;
-//     deck[h2[0]] = false;
-//     deck[h2[1]] = false;
+    for (i = 0; i < nruns; i++){
+        deal(board, 5);
+        nwinners = multi_holdem(hands, nhands, board, winners);
+        if (nwinners == 1){
+            results[winners[0]] += 1.0;
+        }
+        else{
+            for (n = nwinners - 1; n >= 0; n--){
+                results[winners[n]] += 1.0 / nwinners;
+             }
+        }
+    }
 
-//     for (i = 52; --i;){
-//         if (!deck[i]) continue;
-//         board[0] = i;
-//         for (j = i; j--;){
-//             if (!deck[j]) continue;
-//             board[1] = j;
-//             for (k = j; k--;){
-//                 if (!deck[k]) continue;
-//                 board[2] = k;
-//                 for (l = k; l--;){
-//                     if (!deck[l]) continue;
-//                     board[3] = l;
-//                     for (m = l; m--;){
-//                         if (!deck[m]) continue;
-//                         board[4] = m;
-//                         results[holdem2p(h1, h2, board)]++;
-//                     }
-//                 }
-//             }
-//         }
-//     }
-//     return (results[0] + 0.5 * (double) results[2]) / (results[0] + results[1]+ results[2]);
-// }
+    for (i = 0; i < nhands; i++){
+        results[i] /= nruns;
+    }
+    return SUCCESS;
+}
 
 
-int full_enumeration(uint32_t hands[MAX_HANDS][2], double results[], int nhands){
+int full_enumeration(uint32_t hands[MAX_HANDS][2], int nhands, uint32_t board[5], int nboard, double results[]){
     //hands ->array of two card hands with no duplicates
     //results -> buffer to hold the results, ev of each hand
-    //n -> number of hands
-    bool deck[52];
+    //nhands -> number of hands
+    //board -> populated by up to 4 cards with room for 5
+    //nboard -> between 0 and 4
 
-    uint32_t i, j, k, l, m, board[5];
-    uint32_t dead[MAX_HANDS * 2];
+    bool dead[52];
+
+    uint32_t i, j, k, l, m;
     int n, nwinners, nrunnouts = 0, winners[MAX_HANDS];
 
-    //set deck positions of dead cards to false
-    for (i = 52; i--; )
-        deck[i] = true;
-
-    for (i = 0, j = 0; i < nhands; i++){
-        dead[j] = hands[i][0];
-        deck[dead[j++]] = false;
-        dead[j] = hands[i][1];
-        deck[dead[j++]] = false;
-        results[i] = 0;
-    }
-
-    if ( dup_check(dead, nhands * 2) == FAIL){
+    if (set_dead(hands, nhands * 2, board, nboard, dead) == FAIL)
         return FAIL;
-    }
+
+    for (i = 0; i < nhands; results[i++] = 0.0);
+
+    //a solution for incorporating variable number of board cards
+    //without changing the preflop code much
+
+    #define CRUNCH nwinners = multi_holdem(hands, nhands, board, winners); \
+                   nrunnouts++; \
+                   if (nwinners == 1) \
+                       results[winners[0]] += 1.0; \
+                   else{ \
+                       for (n = nwinners - 1; n >= 0; n--){ \
+                           results[winners[n]] += 1.0 / nwinners; \
+                        } \
+                   }
+
+    #define CRUNCH_IF(n_) if (nboard == n_){ \
+                              CRUNCH \
+                              continue; \
+                          }
 
     for (i = 52; --i;){
-        if (!deck[i]) continue;
-        board[0] = i;
+        if (dead[i]) continue;
+        board[4] = i;
+        CRUNCH_IF(4)
         for (j = i; j--;){
-            if (!deck[j]) continue;
-            board[1] = j;
+            if (dead[j]) continue;
+            board[3] = j;
+            CRUNCH_IF(3)
             for (k = j; k--;){
-                if (!deck[k]) continue;
+                if (dead[k]) continue;
                 board[2] = k;
+                CRUNCH_IF(2)
                 for (l = k; l--;){
-                    if (!deck[l]) continue;
-                    board[3] = l;
+                    if (dead[l]) continue;
+                    board[1] = l;
+                    CRUNCH_IF(1)
                     for (m = l; m--;){
-                        if (!deck[m]) continue;
-                        board[4] = m;
-                        nwinners = multi_holdem(hands, nhands, board, winners);
-                        nrunnouts++;
-                        if (nwinners == 1)
-                            results[winners[0]] += 1.0;
-                        else{
-                            for (n = nwinners - 1; n >= 0; n--){
-                                results[winners[n]] += 1.0 / nwinners;
-                            }
-                        }
+                        if (dead[m]) continue;
+                        board[0] = m;
+                        CRUNCH
                     }
                 }
             }
         }
     }
+    //we end up skipping card 0 if only running out out rivers
+    if (nboard == 4 && !dead[0]){
+        board[4] = 0;
+        CRUNCH
+    }
+
     for (i = 0; i < nhands; i++){
         results[i] /= nrunnouts;
     }
@@ -429,14 +382,13 @@ int full_enumeration(uint32_t hands[MAX_HANDS][2], double results[], int nhands)
 }
 
 
-
 int river_distribution (uint32_t hand[2], uint32_t board[5], int chart[], dictEntry *dict)
 {
-    uint32_t dead[7], i, j;
+    uint32_t i, j;
 
     uint64_t my_rank;
     uint64_t his_rank;
-    bool deck[52];
+    bool dead[52];
 
     int dict_i = 0;
 
@@ -445,30 +397,16 @@ int river_distribution (uint32_t hand[2], uint32_t board[5], int chart[], dictEn
         data.val += Deck[board[i]];
     }
 
-    //set deck positions of dead cards to false
-    for (i = 0; i < 52; ++i )
-        deck[i] = true;
-
-    for (i = 5; i--; ){
-        dead[i] = board[i];
-        deck[dead[i]] = false;
-    }
-
-    dead[5] = hand[0];
-    dead[6] = hand[1];
-    if ( dup_check(dead, 7) == FAIL){
+    if (set_dead(hand, 2, board, 5, dead) == FAIL)
         return FAIL;
-    }
-    deck[hand[0]] = false;
-    deck[hand[1]] = false;
 
     my_rank = dohand(hand[0], hand[1], &data);
 
-    //run the hands, skipping deck[card]=falses
+    //run the hands, skipping dead cards
     for (i = 0; i < 52; ++i ){
-        if ( deck[i] ){
+        if ( !dead[i] ){
             for ( j = i + 1; j < 52; ++j, ++dict_i ){
-                if ( deck[j] ){
+                if ( !dead[j] ){
                     if (dict_i >= NUM_STARTING_HANDS){
                         return FAIL;
                     }

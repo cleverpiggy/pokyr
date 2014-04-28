@@ -48,6 +48,28 @@ def test_full_enumeration():
         [0.288, 0.165, 0.328, 0.113, 0.106])
 
 
+def test_cfull_enumeration_with_boardcards_against_py():
+    switch = {3:4, 4:3}
+    n = 3
+    for __ in range(100):
+        n = switch[n]
+        cards = utils.deal([2, 2, n])
+        hands, board = cards[:2], cards[2]
+        map(assert_close, cpoker.full_enumeration(hands, board), poker.full_enumeration(hands, board))
+
+    for __ in range(100):
+        n = switch[n]
+        cards = utils.deal([2, 2, 2, n])
+        hands, board = cards[:3], cards[3]
+        map(assert_close, cpoker.full_enumeration(hands, board), poker.full_enumeration(hands, board))
+
+    for __ in range(100):
+        n = switch[n]
+        cards = utils.deal([2, 2, 2, 2, 2, n])
+        hands, board = cards[:5], cards[5]
+        map(assert_close, cpoker.full_enumeration(hands, board), poker.full_enumeration(hands, board))
+
+
 def test_holdem():
     def multi(h1, h2, board):
         r = cpoker.multi_holdem([h1, h2], board)

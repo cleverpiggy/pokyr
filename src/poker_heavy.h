@@ -56,7 +56,8 @@ int multi_holdem(uint32_t [MAX_HANDS][2], int, uint32_t [5], int []);
 uint64_t handvalue(uint32_t hand[7]);
 struct rivervalue rivervalue (uint32_t hand[2], uint32_t board[5]);
 double enum2p(uint32_t h1[2], uint32_t h2[2]);
-int full_enumeration(uint32_t [MAX_HANDS][2], double [], int );
+int full_enumeration(uint32_t [MAX_HANDS][2], int, uint32_t [5], int, double []);
+int monte_carlo(uint32_t [MAX_HANDS][2], int, int, double []);
 int river_distribution (uint32_t hand[2], uint32_t board[5], int chart[], dictEntry *dict);
 void populate_tables(uint16_t ranktable[RANK_TABLE_SIZE],
                      uint16_t flushtable[FLUSH_TABLE_SIZE],
