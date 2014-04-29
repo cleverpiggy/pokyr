@@ -23,7 +23,7 @@ tables are immediately build on import to increase performance
 by eliminating the dot notation of classes.
 
 It includes a 30 MB lookup table which allows approximately
-a 4 times speed increase for holdem2p() over poker_lite.holdem().
+a 4 times speed increase for holdem2p() over poker_lite.holdem2p().
 
 The hash scheme for the lookup table was inspired by the specialK hand
 evaluator blog:
@@ -31,13 +31,12 @@ http://specialk-coding.blogspot.com/2010/04/texas-holdem-7-card-evaluator_23.htm
 The table is populated by the poker_lite.handvalue function.
 """
 
-import random
 import itertools
 import poker_lite
 import utils
 
-_IS_FLUSH, _BITS, _CARD_MASK = (
-    poker_lite.IS_FLUSH, poker_lite.BITS, poker_lite.CARD_MASK)
+
+from poker_lite import _IS_FLUSH, _BITS, CARD_MASK
 
 _SPECIALKS = (0, 1, 5, 22, 98, 453, 2031, 8698, 22854, 83661, 262349, 636345, 1479181)
 _SUITSHIFT = 23
@@ -80,9 +79,9 @@ def _build_ranktable():
 def _build_suittable():
     #Returns a dict.
     flushtable = {}
-    for hand, value in enumerate(poker_lite.FLUSH_TABLE):
+    for hand, value in enumerate(poker_lite._FLUSH_TABLE):
         if not value: continue
-        flushtable[hand] = poker_lite.SF | value if poker_lite.STRAIGHT_TABLE[hand] else poker_lite.FLUSH | value
+        flushtable[hand] = poker_lite.SF | value if poker_lite._STRAIGHT_TABLE[hand] else poker_lite.FLUSH | value
     return flushtable
 
 
@@ -90,13 +89,14 @@ _FLUSH_TABLE = _build_suittable()
 _RANK_TABLE = _build_ranktable()
 
 
-def handvalue(hand, val=0, computed_cards=[], deck=_DECK):
+def handvalue(hand, val=0, computed_cards=[]):
     """Return a value of a seven card hand which can be
     compared to the handvalue value of any other hand to
     see if it is better worse or equal.
 
     Only supply the hand.  The other kwargs are for internal
     use and efficiency"""
+    deck = _DECK
     for c in hand:
         val += deck[c]
 
@@ -105,7 +105,7 @@ def handvalue(hand, val=0, computed_cards=[], deck=_DECK):
         for c in hand + computed_cards:
             flush += _BITS[c]
         flush >>= _IS_FLUSH[val >> _SUITSHIFT]
-        flush &= _CARD_MASK
+        flush &= CARD_MASK
         return _FLUSH_TABLE[flush]
 
     return _RANK_TABLE[val & _RANKMASK]
@@ -127,12 +127,13 @@ def compare(h1, h2):
         return 2
 
 
-def holdem2p(h1, h2, board, deck=_DECK):
+def holdem2p(h1, h2, board):
     """Return an integer representing the winner of two
     holdem hands and a board.
     0 -> h1 wins
     1 -> h2 wins
     2 -> tie"""
+    deck = _DECK
     val = 0
     for c in board:
         val += deck[c]
@@ -144,7 +145,7 @@ def holdem2p(h1, h2, board, deck=_DECK):
         for c in board:
             flush += _BITS[c]
         flush >>= _IS_FLUSH[v1 >> _SUITSHIFT]
-        flush &= _CARD_MASK
+        flush &= CARD_MASK
         v1 = _FLUSH_TABLE[flush]
 
     else:
@@ -157,7 +158,7 @@ def holdem2p(h1, h2, board, deck=_DECK):
         for c in board:
             flush += _BITS[c]
         flush >>= _IS_FLUSH[v2 >> _SUITSHIFT]
-        flush &= _CARD_MASK
+        flush &= CARD_MASK
         v2 = _FLUSH_TABLE[flush]
 
     else:
@@ -172,12 +173,13 @@ def holdem2p(h1, h2, board, deck=_DECK):
 
 _schemes2p = [[0], [1], [0,1]]
 
-def multi_holdem(hands, board, deck=_DECK):
+def multi_holdem(hands, board):
     """Return a list indices representing hands that win or tie."""
 
     if len(hands) == 2: #them holdem2p is optimal
         return _schemes2p[holdem2p(hands[0], hands[1], board)]
 
+    deck=_DECK
     boardval = 0
     for c in board:
         boardval += deck[c]

@@ -33,7 +33,7 @@ from itertools import combinations, combinations_with_replacement
 #for pairs: 52bits:
 #   -quads13bits-trips13bits-pairs13bits-singles13bits-
 
-#phase2() is seperate to allow caching handvalue calculations
+#_phase2() is seperate to allow caching handvalue calculations
 #(ie. in do_board() and do_hand()) and does the following:
 #check flush table for each of four flushes
 #check straight table
@@ -45,12 +45,12 @@ from itertools import combinations, combinations_with_replacement
 
 
 #one of the first 13 bits set for each rank
-RANKS = [1 << n for n in reversed(range(13)) for __ in range(4)]
+_RANKS = [1 << _n for _n in reversed(range(13)) for __ in range(4)]
 
 #one of 52 bits set for each cards
-BITS = [r << i % 4 * 13 for i, r in enumerate(RANKS)]
+_BITS = [_r << _i % 4 * 13 for _i, _r in enumerate(_RANKS)]
 
-SUITS = [0, 1, 8, 57] * 13
+_SUITS = [0, 1, 8, 57] * 13
 
 #the hand type goes on the most significant bits
 SF = 8 << 52
@@ -69,46 +69,46 @@ MIN_TRIPS = 1 << 26
 MIN_QUADS = 1 << 39
 
 
-def build_straighttable():
+def _build_straighttable():
     # Return a table to determine if a group of ranks make a straight.
     # The value is zero for not a straight, otherwise a 1-10 based on rank.
-    BIGGEST_HAND = sum(RANKS[:28:4])
-    RANKS_ = RANKS[::4]
+    BIGGEST_HAND = sum(_RANKS[:28:4])
+    RANKS = _RANKS[::4]
     indexes = [range(i, i+5) for i in range(9)] + [[9, 10, 11, 12, 0]]
     setcards = set(range(13))
     #the extras are the set of card - straight cards + one higher
     extras = [setcards - set(i + [i[0] - 1]) for i in indexes]
-    straights = [sum(RANKS_[i] for i in s) for s in indexes]
+    straights = [sum(RANKS[i] for i in s) for s in indexes]
     table = [0] * (BIGGEST_HAND + 1)
     for i, s in enumerate(straights):
         value = 11 - i # the smallest straights are on the right
         assert value > 0
         table[s] = value
         for e in extras[i]:
-            straight6 = s | RANKS_[e]
+            straight6 = s | RANKS[e]
             table[straight6] = value
         for a, b in combinations(extras[i], 2):
-            straight7 = s | RANKS_[a] | RANKS_[b]
+            straight7 = s | RANKS[a] | RANKS[b]
             table[straight7] = value
     return table
 
 
-def build_flushtable(st=None, lbt=None):
+def _build_flushtable(st=None, lbt=None):
     # Return a table to determine flushes.
 
     # The indices are thirteen bit sets of cards of a single suit.
     # If a number contains 5 or more distinct ranks,
     # it gets a nonszero value mapped to flush strength.
     # Straight flushes are included with possibly a seperate set of values.
-    BIGGEST_HAND = sum(RANKS[:28:4])
-    RANKS_ = RANKS[::4]
+    BIGGEST_HAND = sum(_RANKS[:28:4])
+    RANKS = _RANKS[::4]
     if st is None:
-        st = build_straighttable()
+        st = _build_straighttable()
     if lbt is None:
-        lbt = build_lowbittable()
+        lbt = _build_lowbittable()
     table = [0] * (BIGGEST_HAND + 1)
     for i in (5, 6, 7):
-        for hand in combinations(RANKS_, i):
+        for hand in combinations(RANKS, i):
             index = sum(hand)
             if st[index]:
                 v = st[index]
@@ -126,13 +126,13 @@ def find_lowbit(n):
         if n & (1 << i):
             return i
 
-def build_lowbittable():
+def _build_lowbittable():
     #this contains the bit itself
     NO_HAND = 0xff
     return [NO_HAND] + [1 << find_lowbit(n) for n in xrange(1, 1 << 13)]
 
 
-def build_isflush():
+def _build_isflush():
     # Populate with the numbers to right shift for the flush value.
     # -1 for not a flush.
     suits = [0, 1, 8, 57]
@@ -144,30 +144,32 @@ def build_isflush():
     return table
 
 
-LOWBITS = build_lowbittable()
-STRAIGHT_TABLE = build_straighttable()
-FLUSH_TABLE = build_flushtable()
-IS_FLUSH = build_isflush()
+_LOWBITS = _build_lowbittable()
+_STRAIGHT_TABLE = _build_straighttable()
+_FLUSH_TABLE = _build_flushtable()
+_IS_FLUSH = _build_isflush()
 
 
-def handvalue(hand, ranks=RANKS, suits=SUITS):
+def handvalue(hand):
     """Return a value of a seven card hand which can be
     compared to the handvalue value of any other hand to
     see if it is better worse or equal.
 
     Only supply the hand.  The other kwargs are for internal
     use and efficiency"""
+    ranks=_RANKS
+    suits=_SUITS
     f = 0
     for c in hand:
         f += suits[c]
 
-    if IS_FLUSH[f] != -1:
+    if _IS_FLUSH[f] != -1:
         flush = 0
         for c in hand:
-            flush += BITS[c]
-        flush >>= IS_FLUSH[f]
+            flush += _BITS[c]
+        flush >>= _IS_FLUSH[f]
         flush &= CARD_MASK
-        return SF | FLUSH_TABLE[flush] if STRAIGHT_TABLE[flush] else FLUSH | FLUSH_TABLE[flush]
+        return SF | _FLUSH_TABLE[flush] if _STRAIGHT_TABLE[flush] else FLUSH | _FLUSH_TABLE[flush]
 
     val = 0
     straight = 0
@@ -178,20 +180,22 @@ def handvalue(hand, ranks=RANKS, suits=SUITS):
             r <<= 13
         val |= r
 
-    if STRAIGHT_TABLE[straight]:
-        return STRAIGHT | STRAIGHT_TABLE[straight]
+    if _STRAIGHT_TABLE[straight]:
+        return STRAIGHT | _STRAIGHT_TABLE[straight]
 
-    #reduce the less paired status of the more paired cards for phase2
-    return phase2(val ^ (val >> 13))
+    #reduce the less paired status of the more paired cards for _phase2
+    return _phase2(val ^ (val >> 13))
 
+_rsb = zip(_RANKS,_SUITS,_BITS)
 
-def doboard(board, rsb=zip(RANKS,SUITS,BITS)):
+def _doboard(board):
     """Return the part of the hand evaluating function after
     processing just the board.
 
     If you want to calculate the values of many two card hands
     on one board, use this result along with the different hands
-    in the dohand function"""
+    in the _dohand function"""
+    rsb = _rsb
     val = 0
     flush = 0
     straight = 0
@@ -208,24 +212,26 @@ def doboard(board, rsb=zip(RANKS,SUITS,BITS)):
     return val, flush, straight, isflush
 
 
-def dohand(hand, board_info, ranks=RANKS, suits=SUITS):
+def _dohand(hand, board_info):
     """Return a hand value.
     hand -> two card holdem hand
-    board_info -> the return value of the doboard function"""
+    board_info -> the return value of the _doboard function"""
+    ranks = _RANKS
+    suits = _SUITS
     val, flush, straight, isflush = board_info
 
     c1, c2 = hand
 
     isflush += suits[c1] + suits[c2]
-    if IS_FLUSH[isflush] != -1:
-        flush += BITS[c1] + BITS[c2]
-        flush >>= IS_FLUSH[isflush]
+    if _IS_FLUSH[isflush] != -1:
+        flush += _BITS[c1] + _BITS[c2]
+        flush >>= _IS_FLUSH[isflush]
         flush &= CARD_MASK
-        return SF | FLUSH_TABLE[flush] if STRAIGHT_TABLE[flush] else FLUSH | FLUSH_TABLE[flush]
+        return SF | _FLUSH_TABLE[flush] if _STRAIGHT_TABLE[flush] else FLUSH | _FLUSH_TABLE[flush]
 
     straight |= ranks[c1] | ranks[c2]
-    if STRAIGHT_TABLE[straight]:
-        return STRAIGHT | STRAIGHT_TABLE[straight]
+    if _STRAIGHT_TABLE[straight]:
+        return STRAIGHT | _STRAIGHT_TABLE[straight]
 
     r = ranks[c1]
     while r & val:
@@ -237,8 +243,8 @@ def dohand(hand, board_info, ranks=RANKS, suits=SUITS):
         r <<= 13
     val |= r
 
-    #reduce the less paired status of the more paired cards for phase2
-    return phase2(val ^ (val >> 13))
+    #reduce the less paired status of the more paired cards for _phase2
+    return _phase2(val ^ (val >> 13))
 
 
 def holdem2p(h1, h2, board):
@@ -247,9 +253,9 @@ def holdem2p(h1, h2, board):
     0 -> h1 wins
     1 -> h2 wins
     2 -> tie"""
-    board_info = doboard(board)
-    v1 = dohand(h1, board_info)
-    v2 = dohand(h2, board_info)
+    board_info = _doboard(board)
+    v1 = _dohand(h1, board_info)
+    v2 = _dohand(h2, board_info)
     if v1 > v2:
         return 0
     if v2 > v1:
@@ -257,75 +263,99 @@ def holdem2p(h1, h2, board):
     return 2
 
 
-def phase2(val):
+
+_schemes2p = [[0], [1], [0,1]]
+
+def multi_holdem(hands, board):
+    """Return a list indices representing hands that win or tie."""
+
+    if len(hands) == 2: #them holdem2p is optimal
+        return _schemes2p[holdem2p(hands[0], hands[1], board)]
+
+    board_info = _doboard(board)
+
+    results = []
+    best = 0
+    for i, h in enumerate(hands):
+        v = _dohand(h, board_info)
+        if v > best:
+            results = [i]
+            best = v
+        elif v == best:
+            results.append(i)
+    return results
+
+
+def _phase2(val):
     
     # This is a helper function for the handvalue functions.
     # It goes through the hand, turning off the bits of the
     # unused cards to produce the best five.  Then it attaches
     # the hand type code (Two pair, flush, etc.) to the most
     # significant bit.
+    lowbits = _LOWBITS
 
     if val < MIN_PAIR:
-        val ^= LOWBITS[val]
-        val ^= LOWBITS[val]
+        val ^= lowbits[val]
+        val ^= lowbits[val]
         return val
 
     if val < MIN_TRIPS:
         pairs = val >> 13
-        if pairs == LOWBITS[pairs]:#just a pair
+        if pairs == lowbits[pairs]:#just a pair
             #get rid of the two lowest cards
             kickers = val & CARD_MASK
-            val ^= LOWBITS[kickers]
-            kickers ^= LOWBITS[kickers]
-            val ^= LOWBITS[kickers]
+            val ^= lowbits[kickers]
+            kickers ^= lowbits[kickers]
+            val ^= lowbits[kickers]
             return PAIR | val
 
-        elif pairs ^ (LOWBITS[pairs]) == LOWBITS[pairs ^ (LOWBITS[pairs])]:# just two pair
+        elif pairs ^ (lowbits[pairs]) == lowbits[pairs ^ (lowbits[pairs])]:# just two pair
             kickers = val & CARD_MASK
-            val ^= LOWBITS[kickers]
-            kickers ^= LOWBITS[kickers]
-            val ^= LOWBITS[kickers]
+            val ^= lowbits[kickers]
+            kickers ^= lowbits[kickers]
+            val ^= lowbits[kickers]
             return TWOPAIR | val
         else: #three pair
-            badpair = LOWBITS[pairs]
+            badpair = lowbits[pairs]
             #take the bad pair rank from pairs and add it to singles
             val ^= (badpair << 13)
             val |= badpair
             kickers = val & CARD_MASK
-            val ^= LOWBITS[kickers]
+            val ^= lowbits[kickers]
             return TWOPAIR | val
 
     if val < MIN_QUADS:
         trips = val >> 26
-        if trips != LOWBITS[trips]:#two sets of trips
+        if trips != lowbits[trips]:#two sets of trips
             #move low trips to pair position
-            val |= (LOWBITS[trips] << 13)
-            val ^= (LOWBITS[trips] << 26)
+            val |= (lowbits[trips] << 13)
+            val ^= (lowbits[trips] << 26)
             kickers = val & CARD_MASK
-            val ^= LOWBITS[kickers]
+            val ^= lowbits[kickers]
             return FULL | val
         pairs = (val >> 13) & CARD_MASK
-        if pairs == LOWBITS[pairs]:
+        if pairs == lowbits[pairs]:
             kickers = val & CARD_MASK
-            val ^= LOWBITS[kickers]
-            kickers ^= LOWBITS[kickers]
-            val ^= LOWBITS[kickers]
+            val ^= lowbits[kickers]
+            kickers ^= lowbits[kickers]
+            val ^= lowbits[kickers]
             return FULL | val
         #trips and two pair
         if pairs:
-            val ^= (LOWBITS[pairs] << 13)
+            val ^= (lowbits[pairs] << 13)
             return FULL | val
         #trips
         kickers = val & CARD_MASK
-        val ^= LOWBITS[kickers]
-        kickers ^= LOWBITS[kickers]
-        val ^= LOWBITS[kickers]
+        val ^= lowbits[kickers]
+        kickers ^= lowbits[kickers]
+        val ^= lowbits[kickers]
         return TRIPS | val
     #quads, remove the other three cards, find the highest, add to ones column
     kickers = (val & CARD_MASK) | ((val >> 13) & CARD_MASK) | ((val >> 26) & CARD_MASK)
     #get the kickers down to 1
-    while LOWBITS[kickers] != kickers:
-        kickers ^= LOWBITS[kickers]
+    while lowbits[kickers] != kickers:
+        kickers ^= lowbits[kickers]
     val &= (CARD_MASK << 39)
     val |= kickers
     return QUADS | val
@@ -353,10 +383,10 @@ def arraystr(l):
 def write_ctables(name="cpokertables.h"):
     """Write the cpokertables.h header file."""
     tables = [
-        "#define FLUSH_TABLE " + arraystr(build_flushtable()),
-        "#define STRAIGHT_TABLE " + arraystr(build_straighttable()),
-        "#define LOWBITS " + arraystr(build_lowbittable()),
-        "#define ISFLUSH " + arraystr(build_isflush())
+        "#define FLUSH_TABLE " + arraystr(_FLUSH_TABLE),
+        "#define STRAIGHT_TABLE " + arraystr(_STRAIGHT_TABLE),
+        "#define LOWBITS " + arraystr(_LOWBITS),
+        "#define ISFLUSH " + arraystr(_IS_FLUSH)
     ]
     with open(name, 'w') as f:
         f.write("\n".join(tables))
