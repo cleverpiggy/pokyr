@@ -41,20 +41,40 @@ or integers.
 
 Compile and Install
 -------
-OSX -> Xcode should provide you with everything you need.
+OSX -> Easiest is to install xcode command line tools.
+On Maverick you should be able to open a terminal and just type
+
+```
+$ xcode-select --install
+```
+
+On older versions you may have to download the entire Xcode from
+the app store.
 
 Linux -> You just need python-dev and gcc and you should be good to go.
+ie. on debian/ubuntu:
+
 ```
-$python setup.py install
+$ sudo apt-get install gcc python-dev
 ```
+
+Then in any case from the pokyr directory:
+
+```
+$ python setup.py install
+```
+
 There is an issue with later versions of osx and Xcode 5.1.
 If you get the error:
+
 ```
 clang: error: unknown argument: '-mno-fused-madd' [-Wunused-command-line-argument-hard-error-in-future]
 ```
+
 you can try running this before setup.py:
+
 ```
-$export CFLAGS=-Qunused-arguments
+$ export CFLAGS=-Qunused-arguments
 ```
 
 Apple will hopefully fix this problem in a future release.
