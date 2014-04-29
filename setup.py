@@ -19,8 +19,11 @@ module = Extension(
     sources=sources
 )
 
-with open("README.md") as f:
-    long_description = f.read()
+long_description = "README at https://github.com/cleverpiggy/pokyr"
+if os.path.exists("README.txt"):
+    with open("README.txt") as f:
+        long_description = f.read()
+
 
 setup(
     name='pokyr',
