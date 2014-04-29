@@ -99,30 +99,7 @@ class Deck(list):
         return result
 
 
-def deal(hands=None, deck=Deck()):
-    """
-    Return a list of hands according to 'hands' dimensions
-    provided.  Default is a hand, hand, board holdem scheme.
-    >>> [len(h) for h in deal()]
-    [2, 2, 5]
-    >>> [len(h) for h in deal((7, 7))]
-    [7, 7]
-    """
-    if hands is None:
-        cards = random.sample(deck, 9)
-        bb_hand, button_hand, board = cards[:2], cards[2:4], cards[4:]
-        return bb_hand, button_hand, board
-
-    if isinstance(hands, int):
-        return random.sample(deck, hands)
-
-    cards = random.sample(deck, sum(hands))
-    i = 0
-    result = []
-    for n in hands:
-        result.append(cards[i: i + n])
-        i += n
-    return result
+deal = Deck().deal
 
 
 def split_cards(cards):
@@ -173,41 +150,6 @@ def to_cards(hand):
     return [Card(c) for c in hand_]
 
 
-# def pretty_args(ugly_func):
-#     """
-#     Return a function that can use pretty cards as args.
-
-#     >>> def f(a, b, c):
-#     ...     return a, b, c
-#     >>> pa = pretty_args(f)("As Ks", "I have the As Ks", 3.14)
-#     >>> pa == (to_cards("As Ks"), "I have the As Ks", 3.14)
-#     True
-#     >>> pa = pretty_args(f)("bottybot", "As", .123)
-#     >>> pa == ("bottybot", to_cards("As"), .123)
-#     True
-#     """
-#     def func(*args, **kwargs):
-#         ugly_args = []
-#         for a in args:
-#             u_arg = a
-#             if isinstance(a, str):
-#                 try:
-#                     u_arg = to_cards(a)
-#                 except TypeError:
-#                     u_arg = a
-#             ugly_args.append(u_arg)
-#         for k, v in kwargs.items():
-#             u_arg = v
-#             if isinstance(v, str):
-#                 try:
-#                     u_arg = to_cards(v)
-#                 except TypeError:
-#                     u_arg = v
-#             kwargs[k] = u_arg
-#         return ugly_func(*ugly_args, **kwargs)
-#     update_wrapper(func, ugly_func)
-#     return func
-
 
 def _convert(args, kwargs):
     #helper for pretty_args
@@ -255,23 +197,6 @@ def pretty_args(ugly_func):
     """
     Return a function that can use pretty cards or lists
     of pretty cards as args.
-
-    >>> def f(a, b, c):
-    ...     return a, b, c
-    >>> pa = pretty_args(f)("As Ks", "I have the As Ks", 3.14)
-    >>> pa == (to_cards("As Ks"), "I have the As Ks", 3.14)
-    True
-    >>> pa = pretty_args(f)("bottybot", "As", .123)
-    >>> pa == ("bottybot", to_cards("As"), .123)
-    True
-    >>> pa = pretty_args(f)("bottybot", ["As", "Kd Jd"], .123)
-    >>> pa == ("bottybot", [to_cards("As"), to_cards("Kd Jd")], .123)
-    True
-    >>> def kwf(a, b, c=None):
-    ...     return a, b, c
-    >>> pa = pretty_args(kwf)("bottybot", ["As", "Kd Jd"], c=["Js", "4d 3d"])
-    >>> pa == ("bottybot", [to_cards("As"), to_cards("Kd Jd")], [to_cards("Js"), to_cards("4d 3d")])
-    True
     """
 
     def func(*args, **kwargs):
