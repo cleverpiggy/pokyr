@@ -59,6 +59,7 @@ double enum2p(uint32_t h1[2], uint32_t h2[2]);
 int full_enumeration(uint32_t [MAX_HANDS][2], int, uint32_t [5], int, double []);
 int monte_carlo(uint32_t [MAX_HANDS][2], int, int, double []);
 int river_distribution (uint32_t hand[2], uint32_t board[5], int chart[], dictEntry *dict);
+int ehs(uint32_t hand[2], uint32_t board[5], int nboard, int iter_board, int iter_opp, double result[2]);
 void populate_tables(uint16_t ranktable[RANK_TABLE_SIZE],
                      uint16_t flushtable[FLUSH_TABLE_SIZE],
                      const uint16_t straighttable[FLUSH_TABLE_SIZE]);

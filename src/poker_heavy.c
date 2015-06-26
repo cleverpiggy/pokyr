@@ -384,6 +384,9 @@ int full_enumeration(uint32_t hands[MAX_HANDS][2], int nhands, uint32_t board[5]
 
 int river_distribution (uint32_t hand[2], uint32_t board[5], int chart[], dictEntry *dict)
 {
+    int deal(uint32_t [], int);
+    int initdeck(bool [52]);
+
     uint32_t i, j;
 
     uint64_t my_rank;
@@ -423,4 +426,52 @@ int river_distribution (uint32_t hand[2], uint32_t board[5], int chart[], dictEn
         }
     }
     return 0;
+}
+
+int ehs(uint32_t hand[2], uint32_t board[5], int nboard, int iter_board, int iter_opp, double result[2]) {
+  int deal(uint32_t [], int);
+  int initdeck(bool [52]);
+  int resetdeck(bool [52]);
+  int i, j;
+  int winner, wins[3];
+  uint32_t temp[5];
+  bool dead[52];
+  uint32_t opp[2];
+  double eq;
+  int k;
+
+  if (set_dead(hand, 2, board, nboard, dead) == FAIL) return FAIL;
+  if (initdeck(dead) == FAIL) return FAIL;
+  result[0] = 0.0;
+  result[1] = 0.0;
+  for (i = 0; i < iter_board; i++){
+    for (j = 0; j < 3; j++) wins[j] = 0;
+
+    deal(temp, 5 - nboard + 2); 
+    
+    for (j = 0; j < 5 - nboard; j++) board[j + nboard] = temp[j];
+
+    // remove the new cards dealt
+    if (set_dead(hand, 2, board, 5, dead) == FAIL) return FAIL;
+    if (resetdeck(dead) == FAIL) return FAIL;
+
+    for (j = 0; j < iter_opp; j++){
+      deal(opp, 2);
+      winner = holdem2p(hand, opp, board);
+      wins[winner] += 1;
+    }
+
+    // add them back  
+    if (set_dead(hand, 2, board, nboard, dead) == FAIL) return FAIL;
+    if (resetdeck(dead) == FAIL) return FAIL;
+
+
+    eq = (wins[0] + .5 * wins[2]) / iter_opp;
+    result[0] += eq;
+    result[1] += eq * eq;
+  }
+  result[0] /= iter_board;
+  result[1] /= iter_board;
+
+  return SUCCESS;
 }
