@@ -438,7 +438,6 @@ int ehs(uint32_t hand[2], uint32_t board[5], int nboard, int iter_board, int ite
     bool dead[52];
     uint32_t opp[2];
     double eq;
-    int k;
 
     if (set_dead(hand, 2, board, nboard, dead) == FAIL) return FAIL;
     if (initdeck(dead) == FAIL) return FAIL;
