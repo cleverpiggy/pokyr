@@ -271,7 +271,7 @@ def ehs(hand, board=[], iter_board=1000, iter_opp=100):
     """Returns expected hand strength and expected hand strength squared
     of player.
 
-    hand -> list of two card hands
+    hand -> two card hand
     board -> any # of cards 0-5.
     """
     needed_cards = 5 - len(board)
