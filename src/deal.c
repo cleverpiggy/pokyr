@@ -27,6 +27,20 @@ int initdeck(bool dead[52]){
     return SUCCESS;
 }
 
+int resetdeck(bool dead[52]){
+    //simply remask the deck (but don't restart the random number!)
+    uint32_t card;
+    int i = 0;
+    for (card = 0; card < 52; card++){
+        if (!dead || !dead[card])
+            Deck[i++] = card;
+    }
+    DeckSize = i;
+    return SUCCESS;
+}
+
+
+
 
 int deal(uint32_t cards[], int n){
     int i, r;
