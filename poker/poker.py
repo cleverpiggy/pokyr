@@ -266,3 +266,30 @@ def enum2p(h1, h2, board=[]):
 
     ev1 = (wins[0] + .5 * wins[2]) / sum(wins)
     return [ev1, 1.0 - ev1]
+
+def ehs(hand, board=[], iter_board=1000, iter_opp=100):
+    """Returns expected hand strength and expected hand strength squared
+    of player.
+
+    hand -> list of two card hands
+    board -> any # of cards 0-5.
+    """
+    needed_cards = 5 - len(board)
+    ehs = 0
+    ehs2 = 0
+    deck = utils.Deck(dead=hand+board)
+    for b in xrange(iter_board):
+        wins = [0, 0, 0]
+        temp = board + deck.deal(needed_cards)
+        newdeck = utils.Deck(dead=hand+temp)
+        for t in xrange(iter_opp):
+            h2 = newdeck.deal(2)
+            winners = holdem2p(hand, h2, temp)
+            wins[winners]+= 1
+        eq = (wins[0] + .5 * wins[2]) / iter_opp
+        ehs += eq
+        ehs2 += eq * eq
+    ehs /= iter_board
+    ehs2 /= iter_board
+    print "Total: {0}, EHS: {1}, EHS2: {2}".format(iter_board*iter_opp, ehs, ehs2)
+    return ehs, ehs2
