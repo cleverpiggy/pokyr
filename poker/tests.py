@@ -75,9 +75,9 @@ def test_holdem():
         r = cpoker.multi_holdem([h1, h2], board)
         if r != poker.multi_holdem([h1, h2], board):
             for h in [h1, h2, board]:
-                print utils.make_pretty(h)
-            print r
-            print poker.multi_holdem([h1, h2], board)
+                print(utils.make_pretty(h))
+            print(r)
+            print(poker.multi_holdem([h1, h2], board))
             assert False
         return r[0] if len(r) == 1 else 2
 
@@ -121,10 +121,10 @@ def test_holdem():
         assert f('4s Ad', '5h 4c', 'Jc 9h 3d Qc 2s') == 0
 
     #do some more for good measure
-    for __ in xrange(1000):
+    for __ in range(1000):
         cards = utils.deal()
         if len(set([f(*cards) for f in funcs])) != 1:
-            print [f(*cards) for f in funcs]
+            print([f(*cards) for f in funcs])
             assert False
 
 

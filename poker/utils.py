@@ -64,7 +64,7 @@ class Card(int):
 
 class Deck(list):
 
-    _deck = set(Card(c) for c in xrange(52))
+    _deck = set(Card(c) for c in range(52))
 
     def __init__(self, dead=None):
         deck = self._deck if dead is None else self._deck - set(dead)
@@ -127,7 +127,7 @@ def make_pretty(hand, sort=False):
     """
     if isinstance(hand, int):
         hand = [hand]
-    sort_ = sorted if sort else (lambda x, reverse=0:x)
+    sort_ = sorted if sort else (lambda x, reverse=0: x)
     return ' '.join(str(Card(c)) for c in sort_(hand, reverse=True))
 
 

@@ -1,7 +1,7 @@
-import utils
+from . import utils
 try:
-    import cpoker
+    from . import cpoker
 except ImportError:
-    import poker
+    from . import poker
 
 __all__ = ["poker", "utils", "cpoker"]

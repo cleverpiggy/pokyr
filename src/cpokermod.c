@@ -19,6 +19,13 @@
 #include "Python.h"
 
 
+#if PY_MAJOR_VERSION >= 3
+#define PyInt_FromLong PyLong_FromLong
+#define PyInt_Check PyLong_Check
+#define PyInt_AsLong PyLong_AsLong
+#endif
+
+
 static int convert_cards(PyObject *pycard_list, uint32_t *cards, int ncards){
     int i;
     PyObject * pycard;
@@ -40,7 +47,7 @@ static int convert_cards(PyObject *pycard_list, uint32_t *cards, int ncards){
             PyErr_SetString(PyExc_TypeError, "cards must be ints");
             return FAIL;
         }
-        cards[i] = PyInt_AsLong( pycard );
+        cards[i] = (uint32_t) PyInt_AsLong( pycard );
     }
 
     return 1;
@@ -139,7 +146,7 @@ static PyObject *cpoker_multi_holdem(PyObject *self, PyObject *args){
     if ( ! PyArg_ParseTuple(args, "OO", &pyhands, &pyboard ) )
         return NULL;
 
-    if ( (nhands = PyList_Size(pyhands)) == FAIL ){
+    if ( (nhands = (int) PyList_Size(pyhands)) == FAIL ){
         PyErr_SetString(PyExc_TypeError, "multi_holdem requires a list of hands");
         return NULL;
     }
@@ -249,7 +256,7 @@ static PyObject * cpoker_full_enumeration ( PyObject * self, PyObject * args )
     if (!PyArg_ParseTuple(args, "O|O", &pyhands, &pyboard))
         return NULL;
 
-    if ( (nhands = PyList_Size(pyhands)) <= 1 ){ // this also happens if 'pyhands' is not a list
+    if ( (nhands = (int) PyList_Size(pyhands)) <= 1 ){ // this also happens if 'pyhands' is not a list
         PyErr_SetString(PyExc_TypeError, "full_enumeration requires a list of hands");
         return NULL;
     }
@@ -259,7 +266,7 @@ static PyObject * cpoker_full_enumeration ( PyObject * self, PyObject * args )
         return NULL;
     }
 
-    if ( pyboard && ( (nboard = PyList_Size(pyboard)) > 4 || nboard == FAIL ) ){
+    if ( pyboard && ( (nboard = (int) PyList_Size(pyboard)) > 4 || nboard == FAIL ) ){
         PyErr_SetString(PyExc_ValueError, "board must be a list of 0-4 cards");
         return NULL;
     }
@@ -315,7 +322,7 @@ static PyObject *cpoker_monte_carlo ( PyObject * self, PyObject * args )
     if (!PyArg_ParseTuple(args, "O|i", &pyhands, &runs))
         return NULL;
 
-    if ( (nhands = PyList_Size(pyhands)) <= 1 ){ // this also happens if 'pyhands' is not a list
+    if ( (nhands = (int) PyList_Size(pyhands)) <= 1 ){ // this also happens if 'pyhands' is not a list
         PyErr_SetString(PyExc_TypeError, "monte_carlo requires a list of hands");
         return NULL;
     }
@@ -371,7 +378,7 @@ int setHandDictWithList(PyObject * pyList, dictEntry handDict[]){
         for (j = i + 1; j < 52; j++, dict++, index++){
             dict->hand[0] = i;
             dict->hand[1] = j;
-            dict->value = PyInt_AsLong(PyList_GetItem(pyList, index));
+            dict->value = (int) PyInt_AsLong(PyList_GetItem(pyList, index));
             if (dict->value > max)
                 max = dict->value;
         }
@@ -423,7 +430,7 @@ int setHandDictWithDict(PyObject *pyDict, dictEntry handDict[]){
         }
         handDict[index].hand[0] = c1;
         handDict[index].hand[1] = c2;
-        if ( (handDict[index].value = PyInt_AsLong(value)) == FAIL){
+        if ( (handDict[index].value = (int) PyInt_AsLong(value)) == FAIL){
             PyErr_SetString(PyExc_ValueError, "dictionary values must be integers");
             return FAIL;
         }
@@ -556,13 +563,46 @@ static PyMethodDef cpokerMethods[] = {
 };
 
 
+#if PY_MAJOR_VERSION >= 3
 
-PyMODINIT_FUNC initcpoker (void)
+static struct PyModuleDef cpokermodule = {
+    PyModuleDef_HEAD_INIT,
+    "cpoker",     /* m_name */
+    "This does poker stuff",  /* m_doc */
+    -1,                  /* m_size */
+    cpokerMethods,    /* m_methods */
+    NULL,                /* m_reload */
+    NULL,                /* m_traverse */
+    NULL,                /* m_clear */
+    NULL,                /* m_free */
+};
+
+#endif
+
+
+PyMODINIT_FUNC
+#if PY_MAJOR_VERSION >= 3
+PyInit_cpoker (void)
+#else
+initcpoker (void)
+#endif
 {
     extern uint16_t Rank_Table[7825760];
     extern uint16_t Flush_Table[8129];
     extern uint16_t Straight_Table[8129];
     populate_tables(Rank_Table, Flush_Table, Straight_Table);
 
+    #if PY_MAJOR_VERSION >= 3
+
+    PyObject *m;
+
+    m = PyModule_Create(&cpokermodule);
+    if (m == NULL)
+        return NULL;
+
+    return m;
+
+    #else
     (void) Py_InitModule("cpoker", cpokerMethods);
+    #endif
 }
