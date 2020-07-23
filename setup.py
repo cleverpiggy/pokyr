@@ -11,8 +11,13 @@ if not os.path.exists(os.path.join("src", "cpokertables.h")):
     from poker import poker_lite
     poker_lite.write_ctables(os.path.join("src", "cpokertables.h"))
 
-sources = [os.path.join("src", f) for f in
-           os.listdir("src") if f.endswith('.c')]
+sources = [
+    'src/build_table.c',
+    'src/cpokermod.c',
+    'src/deal.c',
+    'src/poker_heavy.c',
+    'src/poker_lite.c'
+]
 
 module = Extension(
     'poker.cpoker',
