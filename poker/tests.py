@@ -16,10 +16,10 @@
 #     along with pokyr.  If not, see <http://www.gnu.org/licenses/>.
 
 
-import cpoker
-import poker_lite
-import poker
-import utils
+from . import cpoker
+from . import poker_lite
+from . import poker
+from . import utils
 
 
 def assert_close(a, b, error=.001):

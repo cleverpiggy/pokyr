@@ -120,9 +120,9 @@ def split_cards(cards):
 def make_pretty(hand, sort=False):
     """
     Hand is integers or Card objects.
-    >>> print make_pretty([Card("As"), Card("Ks"), Card("Qs"), Card("Js"), Card("Ts")])
+    >>> print(make_pretty([Card("As"), Card("Ks"), Card("Qs"), Card("Js"), Card("Ts")]))
     As Ks Qs Js Ts
-    >>> print make_pretty([0, 1, 2, 3])
+    >>> print(make_pretty([0, 1, 2, 3]))
     Ac Ad Ah As
     """
     if isinstance(hand, int):
