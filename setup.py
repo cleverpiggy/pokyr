@@ -2,8 +2,10 @@
 Poker hand evaluating modules that provide fast enumerations.
 Both C Extension module it's pure python analogies are included.
 """
-
-from distutils.core import setup, Extension
+try:
+    from setuptools import setup, Extension
+except ImportError:
+    from distutils.core import setup, Extension
 import os
 
 
@@ -25,21 +27,22 @@ module = Extension(
 )
 
 long_description = "README at https://github.com/cleverpiggy/pokyr"
-if os.path.exists("README.txt"):
-    with open("README.txt") as f:
+if os.path.exists("README.md"):
+    with open("README.md") as f:
         long_description = f.read()
 
 
 setup(
     name='pokyr',
-    version='0.1.2',
+    version='0.1.24',
     ext_modules=[module],
     packages=['poker'],
     author='Allen Boyd Cunningham',
     author_email='cleverfoundation@gmail.com',
     url='https://github.com/cleverpiggy/pokyr',
-    description=__doc__,
+    description='Poker hand evaluating modules that provide fast enumerations.',
     long_description=long_description,
+    long_description_content_type='text/markdown',
     license='GPL',
     classifiers=[
         'Programming Language :: Python',
