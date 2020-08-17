@@ -43,6 +43,9 @@ class Card(int):
     def __str__(self):
         return self.strings[self]
 
+    def __repr__(self):
+        return str(self)
+
     def __iter__(self):
         return self.generator()
 
@@ -72,6 +75,9 @@ class Deck(list):
 
     def __str__(self):
         return ' '.join(str(c) for c in self)
+
+    def __repr__(self):
+        return str(self)
 
     def deal(self, hands=None):
         """
