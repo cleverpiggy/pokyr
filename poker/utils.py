@@ -133,6 +133,8 @@ def make_pretty(hand, sort=False):
     """
     if isinstance(hand, int):
         hand = [hand]
+    elif isinstance(hand, str):
+        hand = split_cards(hand)
     sort_ = sorted if sort else (lambda x, reverse=0: x)
     return ' '.join(str(Card(c)) for c in sort_(hand, reverse=True))
 
@@ -153,6 +155,11 @@ def to_cards(hand):
         hand_ = split_cards(hand)
         if len(''.join(hand_)) != len(hand.replace(' ', '')):
             raise TypeError("%s is not a proper card string" % hand)
+    # we got a sequence.  I'll make to work if you can call card on each object
+    elif hasattr(hand, '__len__'):
+        hand_ = hand
+    else:
+        raise TypeError("Cannot coerce object to Cards")
     return [Card(c) for c in hand_]
 
 
