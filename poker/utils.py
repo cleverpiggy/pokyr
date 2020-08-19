@@ -44,7 +44,7 @@ class Card(int):
         return self.strings[self]
 
     def __repr__(self):
-        return str(self)
+        return '<Card {}>'.format(str(self))
 
     def __iter__(self):
         return self.generator()
