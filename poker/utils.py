@@ -27,21 +27,20 @@ class Card(int):
     0 - 51, or by rank{0..12} and suit{0..3}.
     """
 
-    strings = [r + s for r in "AKQJT98765432" for s in 'cdhs']
-    numbers = {s:i for i, s in enumerate(strings)}
+    _strings = [r + s for r in "AKQJT98765432" for s in 'cdhs']
+    _numbers = {s:i for i, s in enumerate(_strings)}
 
     def __new__(cls, c, suit=None):
         if isinstance(c, tuple):
             return int.__new__(cls, c[0] * 4 + c[1])
-        elif suit is not None:
+        if suit is not None:
             return int.__new__(cls, c * 4 + suit)
-        return int.__new__(cls, cls.numbers.get(c, c))
-
-    def __init__(self, *args, **kwargs):
-        assert self % 52 == self
+        card = cls._numbers.get(c, c)
+        assert card % 52 == card
+        return int.__new__(cls, card)
 
     def __str__(self):
-        return self.strings[self]
+        return self._strings[self]
 
     def __repr__(self):
         return '<Card {}>'.format(str(self))
@@ -79,28 +78,32 @@ class Deck(list):
     def __repr__(self):
         return str(self)
 
-    def deal(self, hands=None):
+    def deal(self, hands=None, pretty=False):
         """
         Return a list of hands according to 'hands' dimensions
         provided.  Default is a hand, hand, board holdem scheme.
+
+        hands -> scalar or sequence
+        pretty -> flag for pretty cards
         >>> [len(h) for h in Deck().deal()]
         [2, 2, 5]
         >>> [len(h) for h in Deck().deal((7, 7))]
         [7, 7]
         """
+        convert = make_pretty if pretty else lambda x: x
         if hands is None:
             cards = random.sample(self, 9)
             bb_hand, button_hand, board = cards[:2], cards[2:4], cards[4:]
-            return bb_hand, button_hand, board
+            return convert(bb_hand), convert(button_hand), convert(board)
 
         if isinstance(hands, int):
-            return random.sample(self, hands)
+            return convert(random.sample(self, hands))
 
         cards = random.sample(self, sum(hands))
         i = 0
         result = []
         for n in hands:
-            result.append(cards[i: i + n])
+            result.append(convert(cards[i: i + n]))
             i += n
         return result
 
