@@ -3,6 +3,7 @@ src/cpokertables.h
 *.so
 
 # Distribution / packaging
+MANIFEST
 .Python
 env/
 bin/
