@@ -34,7 +34,7 @@ if os.path.exists("README.md"):
 
 setup(
     name='pokyr',
-    version='0.1.24',
+    version='0.1.25',
     ext_modules=[module],
     packages=['poker'],
     author='Allen Boyd Cunningham',
