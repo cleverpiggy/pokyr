@@ -68,7 +68,14 @@ class Deck(list):
 
     _deck = set(Card(c) for c in range(52))
 
-    def __init__(self, dead=None):
+    def __init__(self, dead=None, pretty=False):
+        """
+        dead -> sequence of cards excluded from the deck
+        pretty -> (bool) Set to True if a card string is provided
+            for 'dead' rather than Cards or ints.  Defaults to False.
+        """
+        if pretty and dead:
+            dead = make_pretty(dead)
         deck = self._deck if dead is None else self._deck - set(dead)
         super(Deck, self).__init__(deck)
 
@@ -164,7 +171,6 @@ def to_cards(hand):
     else:
         raise TypeError("Cannot coerce object to Cards")
     return [Card(c) for c in hand_]
-
 
 
 def _convert(args, kwargs):
