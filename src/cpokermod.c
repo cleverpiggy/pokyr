@@ -165,6 +165,42 @@ static PyObject *cpoker_multi_holdem(PyObject *self, PyObject *args){
 }
 
 
+const char ehs_doc[] =
+"ehs(hand, board=[], iter_board=1000, iter_opp=100)\n\n"
+"Return expected hand strength and expected hand strength squared\n"
+"of player\n\n"
+"hands -> two card hand\n"
+"board -> any # of cards 0-5\n";
+
+static PyObject *cpoker_ehs(PyObject *self, PyObject *args){
+    PyObject *pyhand, *pyboard = NULL;
+    uint32_t hand[2], board[5];
+    double result[2];
+    int nboard = 0;
+    int iter_board = 1000, iter_opp = 100;
+
+    if ( ! PyArg_ParseTuple(args, "O|Oii", &pyhand, &pyboard, &iter_board, &iter_opp ) )
+      return NULL;
+    
+    if ( convert_cards(pyhand, hand, 2) == FAIL )
+      return NULL;
+
+    if ( pyboard && ( (nboard = PyList_Size(pyboard)) > 5 || nboard == FAIL ) ){
+      PyErr_SetString(PyExc_ValueError, "board must be a list of 0-5 cards");
+      return NULL;
+    }
+  
+    if ( pyboard && convert_cards(pyboard, board, nboard) == FAIL)
+      return NULL;
+
+    if ( ehs(hand, board, nboard, iter_board, iter_opp, result) == FAIL ){
+      PyErr_SetString(PyExc_ValueError, "duplicate cards");
+      return NULL;
+    }
+    return (PyObject *) buildListFromArray(result, 2, 'd');
+}
+
+
 const char rivervalue_doc[] =
 "rivervalue(hand, board, [optimistic]) -> float\n\n"
 "Return the ev ( (wins + 0.5ties) / total ) of hand\n"
@@ -241,9 +277,6 @@ const char full_enumeration_doc[] =
 "each hand on every possible board runnout.\n"
 "Ties are rewarded 1.0/ntied the score of a win.\n"
 "This is optimized for 2 players, ie. 3 players is around 3xslower.\n";
-
-int full_enumeration(uint32_t hands[MAX_HANDS][2], int nhands, uint32_t board[5], int nboard, double results[]);
-
 
 //change to allow board and use a list for hands
 static PyObject * cpoker_full_enumeration ( PyObject * self, PyObject * args )
@@ -559,6 +592,7 @@ static PyMethodDef cpokerMethods[] = {
     { "full_enumeration", cpoker_full_enumeration, METH_VARARGS, full_enumeration_doc },
     { "monte_carlo", cpoker_monte_carlo, METH_VARARGS, monte_carlo_doc },
     { "river_distribution", cpoker_river_distribution, METH_VARARGS, river_distribution_doc },
+    { "ehs", cpoker_ehs, METH_VARARGS, ehs_doc },
     { NULL, NULL }
 };
 
